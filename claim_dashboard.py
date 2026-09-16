@@ -1,5 +1,6 @@
 import os
 import re
+import tempfile
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from collections import Counter, defaultdict
@@ -79,6 +80,13 @@ class ClaimDashboard(tk.Tk):
         country_icon = self._load_image("발생국가.png")
         self.country_icon = country_icon.subsample(16, 16) if country_icon else None
         if self.country_icon: self.image_refs.append(self.country_icon)
+        analysis_icon_path = r"D:\Pictures\1.2D아이콘\free-icon-growth-3281306.png"
+        try:
+            analysis_icon = tk.PhotoImage(file=analysis_icon_path)
+            self.analysis_icon = analysis_icon.subsample(max(1, analysis_icon.width() // 22), max(1, analysis_icon.height() // 22))
+            self.image_refs.append(self.analysis_icon)
+        except Exception:
+            self.analysis_icon = None
         logo = self._load_image("company_logo.png")
         if logo:
             logo_small = logo.subsample(max(1, logo.width() // 150), max(1, logo.height() // 48))
@@ -89,16 +97,24 @@ class ClaimDashboard(tk.Tk):
             tk.Label(sidebar, text="▱", fg="#66a9ff", bg="#10243d", font=(KOREAN_FONT, 28, "bold")).pack(pady=(24, 0))
         tk.Label(sidebar, text="클레임 자동 분석", fg="white", bg="#10243d", font=(KOREAN_FONT, 14, "bold")).pack()
         tk.Label(sidebar, text="Claim Analytics", fg="#a9bfd8", bg="#10243d", font=("Segoe UI", 9)).pack(pady=(0, 25))
-        for i, text_label in enumerate(("▦  대시보드", "△  현상별 분석", "◎  국가별 분석", "▣  보고서 출력")):
-            bg = "#1769d4" if i == 0 else "#10243d"
-            if i == 1:
-                tk.Button(sidebar, text=text_label, command=self.show_issue_analysis, anchor="w", padx=18, pady=9, fg="white", bg=bg, activebackground="#1769d4", activeforeground="white", relief="flat", bd=0, font=(KOREAN_FONT, 10)).pack(fill="x", padx=8, pady=1)
-            elif i == 2:
-                tk.Button(sidebar, text=text_label, command=self.show_country_analysis, anchor="w", padx=18, pady=9, fg="white", bg=bg, activebackground="#1769d4", activeforeground="white", relief="flat", bd=0, font=(KOREAN_FONT, 10)).pack(fill="x", padx=8, pady=1)
-            elif i == 3:
-                tk.Button(sidebar, text=text_label, command=self.export_report, anchor="w", padx=18, pady=9, fg="white", bg=bg, activebackground="#1769d4", activeforeground="white", relief="flat", bd=0, font=(KOREAN_FONT, 10)).pack(fill="x", padx=8, pady=1)
-            else:
-                tk.Label(sidebar, text=text_label, anchor="w", padx=18, pady=9, fg="white", bg=bg, font=(KOREAN_FONT, 10)).pack(fill="x", padx=8, pady=1)
+        menu_style = ttk.Style(self)
+        menu_style.configure("Sidebar.Treeview", background="#10243d", fieldbackground="#10243d", foreground="white", borderwidth=0, rowheight=30, font=(KOREAN_FONT, 10))
+        menu_style.map("Sidebar.Treeview", background=[("selected", "#1769d4")], foreground=[("selected", "white")])
+        menu = ttk.Treeview(sidebar, show="tree", selectmode="browse", style="Sidebar.Treeview", height=5)
+        menu.pack(fill="x", padx=8, pady=(0, 10))
+        root = menu.insert("", "end", text="클레임 분석", image=self.analysis_icon, open=True, iid="dashboard")
+        menu.insert(root, "end", text="1. 현상별 분석", iid="issue")
+        menu.insert(root, "end", text="2. 국가별 분석", iid="country")
+        menu.insert(root, "end", text="3. 보고서 출력", iid="report")
+        menu.selection_set(root)
+        menu.bind("<<TreeviewSelect>>", self._on_sidebar_select)
+        self.sidebar_menu = menu
+        customer_menu = ttk.Treeview(sidebar, show="tree", selectmode="browse", style="Sidebar.Treeview", height=2)
+        customer_menu.pack(fill="x", padx=8, pady=(4, 10))
+        customer_root = customer_menu.insert("", "end", text="고객사별 DATA 자동", image=self.analysis_icon, open=True, iid="customer_root")
+        customer_menu.insert(customer_root, "end", text="DATA 업로드", iid="customer_upload")
+        customer_menu.bind("<<TreeviewSelect>>", self._on_customer_menu_select)
+        self.customer_menu = customer_menu
         visual = tk.Frame(sidebar, bg="#10243d")
         visual.pack(side="bottom", fill="x", padx=8, pady=(0, 2))
         car = self._load_image("car.png")
@@ -183,7 +199,7 @@ class ClaimDashboard(tk.Tk):
         self.notebook.add(self.detail_tab, text="원본 데이터")
         self.dashboard_tab.rowconfigure(1, weight=1); self.dashboard_tab.columnconfigure(0, weight=1)
         self.top_frame = tk.Frame(self.dashboard_tab, background="#ffffff"); self.top_frame.grid(row=0, column=0, sticky="ew")
-        self.top_title = tk.Label(self.top_frame, text="클레임 자동 분석", font=(KOREAN_FONT, 17, "bold"), bg="#ffffff", fg="#10243d")
+        self.top_title = tk.Label(self.top_frame, text="클레임 분석", font=(KOREAN_FONT, 17, "bold"), bg="#ffffff", fg="#10243d")
         self.top_title.pack(anchor="w", padx=15, pady=(4, 0))
         self.month_title_frame = tk.Frame(self.top_frame, background="#ffffff")
         self.month_title_frame.pack(anchor="w", padx=15, pady=(2, 0))
@@ -209,6 +225,24 @@ class ClaimDashboard(tk.Tk):
         sb = ttk.Scrollbar(self.detail_tab, orient="vertical", command=self.tree.yview)
         sb.pack(side="right", fill="y")
         self.tree.configure(yscrollcommand=sb.set)
+
+    def _on_sidebar_select(self, _event=None):
+        selected = self.sidebar_menu.selection()
+        if not selected:
+            return
+        actions = {
+            "dashboard": lambda: self.notebook.select(self.dashboard_tab),
+            "issue": self.show_issue_analysis,
+            "country": self.show_country_analysis,
+            "report": self.export_report,
+        }
+        action = actions.get(selected[0])
+        if action:
+            action()
+
+    def _on_customer_menu_select(self, _event=None):
+        if self.customer_menu.selection() == ("customer_upload",):
+            self.customer_data_aggregate()
 
     def export_report(self):
         if not self.rows:
@@ -314,6 +348,370 @@ class ClaimDashboard(tk.Tk):
             return tk.PhotoImage(file=path) if os.path.exists(path) else None
         except Exception:
             return None
+
+    def customer_data_aggregate(self):
+        """기아 시트의 컬럼 순서를 기준으로 모든 고객사 시트를 하나로 합칩니다."""
+        source = filedialog.askopenfilename(
+            title="고객사별 DATA 파일 선택",
+            initialfile="7월 클레임 DATA(AI편집용).xlsx",
+            filetypes=[("Excel 파일", "*.xlsx *.xlsm")],
+        )
+        if not source:
+            return
+        try:
+            wb = openpyxl.load_workbook(source, read_only=True, data_only=False)
+            names = wb.sheetnames
+            kia_name = next((n for n in names if "kia" in n.lower() or "기아" in n), None)
+            if kia_name is None:
+                messagebox.showerror("고객사별 DATA 자동", "기아(KIA) 기준 시트를 찾을 수 없습니다.")
+                return
+            kia_ws = wb[kia_name]
+            kia_rows = list(kia_ws.iter_rows(values_only=True))
+            if not kia_rows:
+                messagebox.showerror("고객사별 DATA 자동", "기아 기준 시트에 데이터가 없습니다.")
+                return
+            headers = list(kia_rows[0])
+            header_keys = [clean(h).replace("\n", " ").strip().lower() for h in headers]
+            target_index = {key: idx for idx, key in enumerate(header_keys) if key}
+            occurrence_idx = next((i for i, key in enumerate(header_keys) if "발생구분" in key), None)
+            corporation_idx = next((i for i, key in enumerate(header_keys) if "법인" in key), None)
+            ro_month_idx = next((i for i, key in enumerate(header_keys) if "ro" in key and "년월" in key), None)
+            oem_notice_idx = next((i for i, key in enumerate(header_keys) if "oem" in key and "통보" in key), None)
+            if oem_notice_idx is None:
+                oem_notice_idx = next((i for i, key in enumerate(header_keys) if "통보서번호" in key), None)
+            notice_idx = next((i for i, key in enumerate(header_keys) if "통보서" in key and "oem" not in key), None)
+            seq_idx = next((i for i, key in enumerate(header_keys) if key == "seq" or key.endswith(" seq")), None)
+            campaign_issue_target_indices = [i for i, key in enumerate(header_keys) if "캠페인" in key and "issue" in key.replace(" ", "")]
+            kia_notice_month_idx = next((i for i, key in enumerate(header_keys) if "통보서월" in key), None)
+            kia_notice_month = next((row[kia_notice_month_idx] for row in kia_rows[1:] if kia_notice_month_idx is not None and kia_notice_month_idx < len(row) and row[kia_notice_month_idx] not in (None, "")), None)
+            kia_year_idx = next((i for i, key in enumerate(header_keys) if key in ("년도", "연도")), None)
+            kia_quarter_idx = next((i for i, key in enumerate(header_keys) if "분기" in key), None)
+            kia_year_value = next((row[kia_year_idx] for row in kia_rows[1:] if kia_year_idx is not None and kia_year_idx < len(row) and row[kia_year_idx] not in (None, "")), None)
+            kia_quarter_value = next((row[kia_quarter_idx] for row in kia_rows[1:] if kia_quarter_idx is not None and kia_quarter_idx < len(row) and row[kia_quarter_idx] not in (None, "")), None)
+            output = Workbook()
+            ws = output.active
+            ws.title = "고객사별 통합"
+            ws.append(headers)
+            total = 0
+            sheet_counts = []
+            for name in names:
+                # 모비스는 일반 모비스 시트가 아니라 사용자가 지정한 모비스OEM 시트만 사용합니다.
+                if (name.strip() == "모비스" or name.strip().lower() == "mobis") and not ("oem" in name.lower() or "oem" in name):
+                    continue
+                rows = list(wb[name].iter_rows(values_only=True))
+                if not rows:
+                    continue
+                source_headers = [clean(h).replace("\n", " ").strip().lower() for h in rows[0]]
+                positions = {}
+                for idx, key in enumerate(source_headers):
+                    if key and key not in positions:
+                        positions[key] = idx
+                count = 0
+                for row in rows[1:]:
+                    if not any(v not in (None, "") for v in row):
+                        continue
+                    mapped = [row[positions[key]] if key in positions and positions[key] < len(row) else None for key in header_keys]
+                    # 일부 시트의 끝부분에는 VIN·날짜 등 몇 개 값만 남은 보조 행이 있습니다.
+                    # 이런 행은 실제 클레임 레코드가 아니므로 통합 대상에서 제외합니다.
+                    if sum(value not in (None, "") for value in mapped) < 5:
+                        continue
+                    # 발생구분은 고객사 원본의 한글 표현과 관계없이 공통 코드로 통일합니다.
+                    if occurrence_idx is not None:
+                        occurrence_value = " ".join(clean(value).lower() for value in row if value is not None)
+                        if "해외" in occurrence_value or "overseas" in occurrence_value:
+                            mapped[occurrence_idx] = "E"
+                        elif "국내" in occurrence_value or "domestic" in occurrence_value:
+                            mapped[occurrence_idx] = "D"
+                    # 모비스 데이터의 통보서 번호는 기아 기준의 OEM통보서번호로 이동합니다.
+                    if oem_notice_idx is not None:
+                        mobis_notice_idx = next((i for i, key in enumerate(source_headers) if "oem" in key and "통보" in key), None)
+                        if mobis_notice_idx is None:
+                            mobis_notice_idx = next((i for i, key in enumerate(source_headers) if "통보서번호" in key), None)
+                        if mobis_notice_idx is not None and mobis_notice_idx < len(row):
+                            mapped[oem_notice_idx] = row[mobis_notice_idx]
+                            if notice_idx is not None:
+                                mapped[notice_idx] = row[mobis_notice_idx]
+                    if "모비스" in name or "mobis" in name.lower() or any("oem" in key and "통보" in key for key in source_headers):
+                        mobis_hk_idx = next((i for i, key in enumerate(source_headers) if "oem" in key and "구분" in key), None)
+                        hk_target_idx = next((i for i, key in enumerate(header_keys) if key in ("h/k", "hk", "h / k")), None)
+                        if mobis_hk_idx is not None and hk_target_idx is not None and mobis_hk_idx < len(row):
+                            mapped[hk_target_idx] = row[mobis_hk_idx]
+                    # 모비스 법인은 고정값으로 입력합니다.
+                    if corporation_idx is not None and ("모비스" in name or "mobis" in name.lower()):
+                        mapped[corporation_idx] = "모비스"
+                    # RO년월은 원본의 RO년월을 우선 사용하고, 없으면 RO일자에서 계산합니다.
+                    if ro_month_idx is not None and ("위아" in name or "모비스" in name or "wia" in name.lower() or "mobis" in name.lower()):
+                        source_ro_idx = next((i for i, key in enumerate(source_headers) if "ro" in key and "년월" in key), None)
+                        ro_value = row[source_ro_idx] if source_ro_idx is not None and source_ro_idx < len(row) else None
+                        if ro_value in (None, ""):
+                            date_idx = next((i for i, key in enumerate(source_headers) if "ro" in key and ("일자" in key or "접수" in key or "date" in key)), None)
+                            ro_value = row[date_idx] if date_idx is not None and date_idx < len(row) else None
+                            if ro_value not in (None, ""):
+                                ro_text = clean(ro_value).replace("/", "-")
+                                match = re.search(r"(20\d{2})[- ]?(\d{1,2})", ro_text)
+                                ro_value = f"{match.group(1)}{int(match.group(2)):02d}" if match else ro_value
+                        if ro_value not in (None, ""):
+                            mapped[ro_month_idx] = ro_value
+                    # 위아 원본의 전용 컬럼을 기아 기준 컬럼에 맞춰 보정합니다.
+                    # 시트명이 달라도 원본 전용 컬럼으로 고객사를 식별합니다.
+                    is_wia = ("위아" in name or "wia" in name.lower() or
+                              any("고객" in key and "통보" in key for key in source_headers) or
+                              any("차종" in key and "표준" in key for key in source_headers) or
+                              (name != kia_name and any("캠페인" in key for key in source_headers) and any("vin" in key for key in source_headers)))
+                    is_mobis = (("모비스" in name or "mobis" in name.lower() or
+                                 ("oem" in name.lower() and "기아" not in name and "kia" not in name.lower())) and name != kia_name) or \
+                               any("oem통보서번호" in key.replace(" ", "") or "oem구분" in key.replace(" ", "") or ("oem법인" in key.replace(" ", "") and "통보서번호" in " ".join(source_headers)) for key in source_headers) or \
+                               (any("차종명" in key.replace(" ", "") for key in source_headers) and any("통보서번호" in key.replace(" ", "") for key in source_headers))
+                    if is_mobis:
+                        is_wia = False
+                    if is_wia:
+                        if corporation_idx is not None:
+                            mapped[corporation_idx] = "WIA"
+                        wia_hk_source_idx = next((i for i, key in enumerate(source_headers) if key in ("h/k", "hk", "oem구분") or ("h/k" in key and "구분" in key)), None)
+                        wia_hk_target_idx = next((i for i, key in enumerate(header_keys) if key in ("h/k", "hk", "h / k")), None)
+                        if wia_hk_source_idx is not None and wia_hk_target_idx is not None and wia_hk_source_idx < len(row):
+                            wia_hk_value = clean(row[wia_hk_source_idx]).upper()
+                            if "KIA" in wia_hk_value:
+                                mapped[wia_hk_target_idx] = "K"
+                            elif "HMC" in wia_hk_value:
+                                mapped[wia_hk_target_idx] = "H"
+                        campaign_issue_indices = [i for i, key in enumerate(header_keys) if "캠페인" in key and "issue" in key.replace(" ", "")]
+                        for campaign_issue_idx in campaign_issue_indices:
+                            mapped[campaign_issue_idx] = None
+                        vin_source_idx = next((i for i, key in enumerate(source_headers) if key.replace(" ", "") in ("vinno", "vin번호")), None)
+                        vin_target_idx = next((i for i, key in enumerate(header_keys) if key in ("vin", "vin번호", "vin no")), None)
+                        if vin_source_idx is not None and vin_target_idx is not None and vin_source_idx < len(row):
+                            mapped[vin_target_idx] = row[vin_source_idx]
+                        model_source_idx = next((i for i, key in enumerate(source_headers) if "차종" in key and "표준" in key), None)
+                        model_target_idx = next((i for i, key in enumerate(header_keys) if "차종" in key), None)
+                        if model_source_idx is not None and model_target_idx is not None and model_source_idx < len(row):
+                            mapped[model_target_idx] = row[model_source_idx]
+                        part_source_idx = next((i for i, key in enumerate(source_headers) if key in ("품번", "part no", "partno")), None)
+                        name_source_idx = next((i for i, key in enumerate(source_headers) if "품명" in key), None)
+                        cause_part_idx = next((i for i, key in enumerate(header_keys) if "원인부품" in key), None)
+                        cause_name_idx = next((i for i, key in enumerate(header_keys) if "원인품명" in key), None)
+                        if part_source_idx is not None and part_source_idx < len(row):
+                            if cause_part_idx is not None:
+                                mapped[cause_part_idx] = row[part_source_idx]
+                        if name_source_idx is not None and name_source_idx < len(row) and cause_name_idx is not None:
+                            mapped[cause_name_idx] = row[name_source_idx]
+                        product_class_idx = next((i for i, key in enumerate(header_keys) if "품명구분" in key), None)
+                        if product_class_idx is not None and cause_name_idx is not None:
+                            cause_name = clean(mapped[cause_name_idx])
+                            is_converter = any(word in cause_name.upper() for word in ("CONVERTER", "CATALYTIC"))
+                            mapped[product_class_idx] = "WCC" if is_converter else cause_name
+                            product_major_idx = next((i for i, key in enumerate(header_keys) if "품명대구분" in key), None)
+                            if product_major_idx is not None:
+                                mapped[product_major_idx] = "컨버터" if is_converter else "머플러"
+                            converter_spec_idx = next((i for i, key in enumerate(header_keys) if "컨버터" in key and "사양" in key), None)
+                            if converter_spec_idx is not None:
+                                mapped[converter_spec_idx] = "카파(WIA)" if is_converter else None
+                            vehicle2_idx = next((i for i, key in enumerate(header_keys) if "차종2" in key.replace(" ", "")), None)
+                            source_vehicle_name_idx = next((i for i, key in enumerate(source_headers) if "차종명" in key), None)
+                            if vehicle2_idx is not None:
+                                mapped[vehicle2_idx] = "카파(WIA)" if is_converter else (row[source_vehicle_name_idx] if source_vehicle_name_idx is not None and source_vehicle_name_idx < len(row) else None)
+                        campaign_source_idx = next((i for i, key in enumerate(source_headers) if key in ("캠페인", "캠페인명", "캠페인 명") or "캠페인" in key), None)
+                        campaign_target_idx = next((i for i, key in enumerate(header_keys) if "캠페인" in key), None)
+                        if campaign_source_idx is not None and campaign_target_idx is not None and campaign_source_idx < len(row):
+                            mapped[campaign_target_idx] = row[campaign_source_idx]
+                        date_pairs = (("생산일자", ("생신일", "생산일")), ("수리일자", ("수리일",)), ("판매일자", ("판매일",)))
+                        if is_wia or is_mobis:
+                            payment_idx = next((i for i, key in enumerate(header_keys) if "납입률" in key), None)
+                            if payment_idx is not None:
+                                mapped[payment_idx] = 100
+                        if is_wia:
+                            proposed_rate_idx = next((i for i, key in enumerate(source_headers) if "제안분담율" in key), None)
+                            for target_word in ("분담률", "적용률"):
+                                target_rate_idx = next((i for i, key in enumerate(header_keys) if target_word in key), None)
+                                if proposed_rate_idx is not None and target_rate_idx is not None and proposed_rate_idx < len(row):
+                                    mapped[target_rate_idx] = row[proposed_rate_idx]
+                            cost_pairs = (("부품비", "변제부품비"), ("공임비", "변제공임비"), ("외주비", "변제외주비"))
+                            for target_word, source_word in cost_pairs:
+                                target_cost_idx = next((i for i, key in enumerate(header_keys) if target_word in key), None)
+                                source_cost_idx = next((i for i, key in enumerate(source_headers) if source_word in key), None)
+                                if target_cost_idx is not None and source_cost_idx is not None and source_cost_idx < len(row):
+                                    mapped[target_cost_idx] = row[source_cost_idx]
+                        for target_word, source_words in date_pairs:
+                            target_idx = next((i for i, key in enumerate(header_keys) if target_word in key), None)
+                            source_idx = next((i for i, key in enumerate(source_headers) if any(word in key for word in source_words)), None)
+                            if target_idx is not None and source_idx is not None and source_idx < len(row) and row[source_idx] not in (None, ""):
+                                date_text = clean(row[source_idx]).replace("-", "/").replace(".", "/")
+                                date_match = re.search(r"(20\d{2})/(\d{1,2})/(\d{1,2})", date_text)
+                                compact_match = re.fullmatch(r"(20\d{2})(\d{2})(\d{2})", date_text.strip())
+                                if date_match:
+                                    mapped[target_idx] = f"{date_match.group(1)}/{int(date_match.group(2)):02d}/{int(date_match.group(3)):02d}"
+                                elif compact_match:
+                                    mapped[target_idx] = f"{compact_match.group(1)}/{compact_match.group(2)}/{compact_match.group(3)}"
+                                else:
+                                    mapped[target_idx] = row[source_idx]
+                        mileage_source_idx = next((i for i, key in enumerate(source_headers) if "주행거리" in key and ("km" in key or "㎞" in key)), None)
+                        mileage_target_idx = next((i for i, key in enumerate(header_keys) if "주행거리" in key), None)
+                        if mileage_source_idx is not None and mileage_target_idx is not None and mileage_source_idx < len(row):
+                            mileage_text = clean(row[mileage_source_idx]).replace(",", "")
+                            try:
+                                mapped[mileage_target_idx] = float(mileage_text) if "." in mileage_text else int(mileage_text)
+                            except (TypeError, ValueError):
+                                mapped[mileage_target_idx] = row[mileage_source_idx]
+                        company_idx = next((i for i, key in enumerate(header_keys) if "업체" in key), None)
+                        if company_idx is not None and mapped[company_idx] in (None, ""):
+                            mapped[company_idx] = "R151"
+                        customer_notice_idx = next((i for i, key in enumerate(source_headers) if "고객" in key and "통보" in key), None)
+                        notice_target_idx = next((i for i, key in enumerate(header_keys) if "통보서" in key and "oem" not in key), None)
+                        if customer_notice_idx is not None and notice_target_idx is not None and customer_notice_idx < len(row):
+                            mapped[notice_target_idx] = row[customer_notice_idx]
+                        claim_ro_idx = next((i for i, key in enumerate(source_headers) if "ro" in key and "클레임" in key), None)
+                        ro_target_idx = next((i for i, key in enumerate(header_keys) if ("r/o" in key or key.startswith("ro")) and "번호" in key), None)
+                        if claim_ro_idx is not None and ro_target_idx is not None and claim_ro_idx < len(row):
+                            mapped[ro_target_idx] = row[claim_ro_idx]
+                        ctype_idx = next((i for i, key in enumerate(header_keys) if "c/type" in key or "ctype" in key), None)
+                        if ctype_idx is not None and clean(mapped[ctype_idx]).replace(" ", "") in ("W:일반클레임", "W:일반클레임", "W:일반클레임"):
+                            mapped[ctype_idx] = "W"
+                    if is_mobis:
+                        mobis_company_idx = next((i for i, key in enumerate(header_keys) if "업체" in key), None)
+                        if mobis_company_idx is not None:
+                            mapped[mobis_company_idx] = "R151"
+                        mobis_field_pairs = (
+                            (("r/o번호", "ro번호", "ro 번호"), ("r/o번호", "ro번호")),
+                            (("vin", "vin번호"), ("vin", "vin번호")),
+                            (("차종명",), ("차종명", "차종(표준)", "차종")),
+                            (("c/type", "클레임타입"), ("c/type", "ctype")),
+                            (("원인부품",), ("품번",)),
+                            (("원인품명",), ("품명",)),
+                            (("원인",), ("원인코드",)),
+                            (("현상",), ("현상코드",)),
+                            (("납입률",), ("업체책임율",)),
+                            (("분담률",), ("업체분담율",)),
+                            (("적용률",), ("업체적용율",)),
+                            (("부품비",), ("업체부품비",)),
+                            (("공임비",), ("업체공임비",)),
+                            (("외주비",), ("업체외주비",)),
+                            (("변제합계",), ("금액",)),
+                        )
+                        for target_names, source_names in mobis_field_pairs:
+                            normalized_targets = {value.replace(" ", "").lower() for value in target_names}
+                            normalized_sources = {value.replace(" ", "").lower() for value in source_names}
+                            target_idx = next((i for i, key in enumerate(header_keys) if key.replace(" ", "").lower() in normalized_targets), None)
+                            if target_names == ("차종명",):
+                                source_idx = next((i for i, key in enumerate(source_headers) if key.replace(" ", "").lower() == "차종명"), None)
+                                if source_idx is None:
+                                    source_idx = next((i for i, key in enumerate(source_headers) if key.replace(" ", "").lower() in normalized_sources), None)
+                            else:
+                                source_idx = next((i for i, key in enumerate(source_headers) if key.replace(" ", "").lower() in normalized_sources), None)
+                            if target_idx is not None and source_idx is not None and source_idx < len(row):
+                                mapped[target_idx] = row[source_idx]
+                        mobis_ctype_target_idx = next((i for i, key in enumerate(header_keys) if key.replace(" ", "").lower() == "c/type"), None)
+                        mobis_ctype_source_idx = next((i for i, key in enumerate(source_headers) if key.replace(" ", "").lower() == "클레임타입"), None)
+                        if mobis_ctype_target_idx is not None and mobis_ctype_source_idx is not None and mobis_ctype_source_idx < len(row):
+                            mapped[mobis_ctype_target_idx] = row[mobis_ctype_source_idx]
+                        mobis_cause_name_idx = next((i for i, key in enumerate(header_keys) if "원인품명" in key), None)
+                        if mobis_cause_name_idx is not None:
+                            mobis_cause_name = clean(mapped[mobis_cause_name_idx])
+                            mobis_is_converter = any(word in mobis_cause_name.upper() for word in ("CONVERTER", "CATALYTIC"))
+                            mobis_major_idx = next((i for i, key in enumerate(header_keys) if "품명대구분" in key), None)
+                            if mobis_major_idx is not None:
+                                mapped[mobis_major_idx] = "컨버터" if mobis_is_converter else "머플러"
+                            mobis_spec_idx = next((i for i, key in enumerate(header_keys) if "컨버터" in key and "사양" in key), None)
+                            if mobis_spec_idx is not None and not mobis_is_converter:
+                                mapped[mobis_spec_idx] = None
+                            mobis_vehicle2_idx = next((i for i, key in enumerate(header_keys) if "차종2" in key.replace(" ", "")), None)
+                            mobis_vehicle_name_idx = next((i for i, key in enumerate(header_keys) if key.replace(" ", "") == "차종명"), None)
+                            if mobis_vehicle2_idx is not None:
+                                mapped[mobis_vehicle2_idx] = "카파(WIA)" if mobis_is_converter else (mapped[mobis_vehicle_name_idx] if mobis_vehicle_name_idx is not None else None)
+                        work_code_target_idx = next((i for i, key in enumerate(header_keys) if "주작업코드" in key), None)
+                        work_code_source_idx = next((i for i, key in enumerate(source_headers) if key.replace(" ", "") == "작업코드"), None)
+                        if work_code_target_idx is not None and work_code_source_idx is not None and work_code_source_idx < len(row):
+                            mapped[work_code_target_idx] = row[work_code_source_idx]
+                        mobis_oem_notice_idx = next((i for i, key in enumerate(source_headers) if key.replace(" ", "") == "oem통보서번호"), None)
+                        if mobis_oem_notice_idx is None:
+                            mobis_oem_notice_idx = next((i for i, key in enumerate(source_headers) if "통보서번호" in key or ("oem" in key and "통보서" in key)), None)
+                        if mobis_oem_notice_idx is not None and mobis_oem_notice_idx < len(row):
+                            mobis_oem_notice = row[mobis_oem_notice_idx]
+                            if notice_idx is not None:
+                                mapped[notice_idx] = mobis_oem_notice
+                            if oem_notice_idx is not None:
+                                mapped[oem_notice_idx] = mobis_oem_notice
+                            notice_text = clean(mobis_oem_notice)
+                            notice_month_match = re.match(r"(20\d{2})(\d{2})", notice_text)
+                            if ro_month_idx is not None and notice_month_match:
+                                mapped[ro_month_idx] = int(f"{notice_month_match.group(1)}{notice_month_match.group(2)}")
+                        mobis_seq_source_idx = next((i for i, key in enumerate(source_headers) if key in ("순위", "no", "no.")), None)
+                        if mobis_seq_source_idx is not None and seq_idx is not None and mobis_seq_source_idx < len(row):
+                            mapped[seq_idx] = row[mobis_seq_source_idx]
+                        # 모비스도 위아와 동일하게 기아 기준 날짜 형식으로 변환합니다.
+                        for target_word, source_words in (("생산일자", ("생산일", "생신일")), ("수리일자", ("수리일",)), ("판매일자", ("판매일",))):
+                            target_idx = next((i for i, key in enumerate(header_keys) if target_word in key), None)
+                            source_idx = next((i for i, key in enumerate(source_headers) if any(word in key for word in source_words)), None)
+                            if target_idx is not None and source_idx is not None and source_idx < len(row) and row[source_idx] not in (None, ""):
+                                date_text = clean(row[source_idx]).replace("-", "/").replace(".", "/").strip()
+                                date_match = re.search(r"(20\d{2})/(\d{1,2})/(\d{1,2})", date_text)
+                                compact_match = re.fullmatch(r"(20\d{2})(\d{2})(\d{2})", date_text)
+                                if date_match:
+                                    mapped[target_idx] = f"{date_match.group(1)}/{int(date_match.group(2)):02d}/{int(date_match.group(3)):02d}"
+                                elif compact_match:
+                                    mapped[target_idx] = f"{compact_match.group(1)}/{compact_match.group(2)}/{compact_match.group(3)}"
+                    # 위아 캠페인Issue는 최종 저장 직전에 다시 확인해 항상 공란으로 유지합니다.
+                    if is_wia or (name != kia_name and any("캠페인" in key for key in source_headers) and any("vin" in key for key in source_headers)):
+                        for campaign_issue_idx in campaign_issue_target_indices:
+                            mapped[campaign_issue_idx] = None
+                    if is_wia or is_mobis:
+                        # 기아 시트와 동일한 통보서월·년도·분기 파생값을 생성합니다.
+                        notice_month_idx = next((i for i, key in enumerate(header_keys) if "통보서월" in key), None)
+                        year_idx = next((i for i, key in enumerate(header_keys) if key in ("년도", "연도")), None)
+                        quarter_idx = next((i for i, key in enumerate(header_keys) if "분기" in key), None)
+                        # 위아·모비스는 각 원본의 월이 아니라 기아 기준 통보서월을 공통 사용합니다.
+                        month_value = mapped[ro_month_idx] if is_mobis and ro_month_idx is not None else kia_notice_month
+                        if month_value in (None, ""):
+                            month_value = mapped[ro_month_idx] if ro_month_idx is not None else None
+                        month_match = re.search(r"(20\d{2})[^0-9]?(\d{1,2})", clean(month_value)) if month_value not in (None, "") else None
+                        if month_match:
+                            year_value = int(month_match.group(1))
+                            month_number = int(month_match.group(2))
+                            if notice_month_idx is not None:
+                                mapped[notice_month_idx] = int(f"{year_value}{month_number:02d}")
+                            if year_idx is not None:
+                                mapped[year_idx] = kia_year_value if kia_year_value not in (None, "") else f"{year_value}년"
+                            if quarter_idx is not None:
+                                mapped[quarter_idx] = kia_quarter_value if kia_quarter_value not in (None, "") else f"{(month_number - 1) // 3 + 1}분기"
+                    if is_mobis:
+                        exact_vehicle_source_idx = next((i for i, key in enumerate(source_headers) if key.replace(" ", "").lower() == "차종명"), None)
+                        exact_vehicle_target_idx = next((i for i, key in enumerate(header_keys) if key.replace(" ", "").lower() == "차종명"), None)
+                        # 모비스OEM의 AS열(Excel 45열)을 차종명 기준값으로 사용합니다.
+                        if exact_vehicle_target_idx is not None and len(row) > 44:
+                            mapped[exact_vehicle_target_idx] = row[44]
+                        elif exact_vehicle_source_idx is not None and exact_vehicle_target_idx is not None and exact_vehicle_source_idx < len(row):
+                            mapped[exact_vehicle_target_idx] = row[exact_vehicle_source_idx]
+                    # SEQ와 RO년월은 기아 기준과 같은 숫자형 표기로 통일합니다.
+                    if seq_idx is not None and mapped[seq_idx] not in (None, ""):
+                        seq_text = clean(mapped[seq_idx]).replace(",", "")
+                        if re.fullmatch(r"\d+", seq_text):
+                            mapped[seq_idx] = int(seq_text)
+                    if ro_month_idx is not None and mapped[ro_month_idx] not in (None, ""):
+                        ro_text = clean(mapped[ro_month_idx]).replace("/", "-")
+                        ro_match = re.search(r"(20\d{2})[- ]?(\d{1,2})", ro_text)
+                        if ro_match:
+                            mapped[ro_month_idx] = f"{ro_match.group(1)}/{int(ro_match.group(2)):02d}"
+                    ws.append(mapped)
+                    count += 1
+                    total += 1
+                sheet_counts.append(f"{name}: {count:,}건")
+            for cell in ws[1]:
+                cell.font = openpyxl.styles.Font(bold=True, color="FFFFFF")
+                cell.fill = openpyxl.styles.PatternFill("solid", fgColor="1F4E78")
+            ws.freeze_panes = "A2"
+            ws.auto_filter.ref = ws.dimensions
+            for col in ws.columns:
+                letter = col[0].column_letter
+                ws.column_dimensions[letter].width = min(max(max(len(clean(c.value)) for c in col[: min(len(col), 100)]) + 2, 10), 32)
+            # 사용자가 저장 위치를 선택하지 않아도 통합 결과를 Excel에서 바로 볼 수 있도록
+            # 임시 파일로 열고, 동시에 대시보드에도 표시합니다.
+            preview_path = os.path.join(tempfile.gettempdir(), "고객사별_통합_DATA_미리보기.xlsx")
+            output.save(preview_path)
+            os.startfile(preview_path)
+            # 고객사별 자동 통합은 클레임 분석 화면과 분리합니다.
+            # 통합 결과는 Excel에서만 열고, 클레임 분석 그래프에는 반영하지 않습니다.
+            messagebox.showinfo("고객사별 DATA 자동 완료", f"기준 시트: {kia_name}\n통합 건수: {total:,}건\n\n{chr(10).join(sheet_counts)}\n\n통합 결과를 Excel에서 열었습니다.\n클레임 분석 그래프에는 반영하지 않습니다.")
+        except Exception as exc:
+            messagebox.showerror("고객사별 DATA 자동 오류", str(exc))
 
     def open_file(self):
         path = filedialog.askopenfilename(filetypes=[("Excel 파일", "*.xlsx *.xlsm"), ("모든 파일", "*.*")])
