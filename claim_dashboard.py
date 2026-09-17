@@ -1,5 +1,7 @@
 import os
 import re
+import subprocess
+import sys
 import tempfile
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
@@ -115,6 +117,12 @@ class ClaimDashboard(tk.Tk):
         customer_menu.insert(customer_root, "end", text="DATA 업로드", iid="customer_upload")
         customer_menu.bind("<<TreeviewSelect>>", self._on_customer_menu_select)
         self.customer_menu = customer_menu
+        merge_menu = ttk.Treeview(sidebar, show="tree", selectmode="browse", style="Sidebar.Treeview", height=2)
+        merge_menu.pack(fill="x", padx=8, pady=(4, 10))
+        merge_root = merge_menu.insert("", "end", text="검수폴더 병합", image=self.analysis_icon, open=True, iid="merge_root")
+        merge_menu.insert(merge_root, "end", text="검수폴더 병합앱", iid="merge_app")
+        merge_menu.bind("<<TreeviewSelect>>", self._on_merge_menu_select)
+        self.merge_menu = merge_menu
         visual = tk.Frame(sidebar, bg="#10243d")
         visual.pack(side="bottom", fill="x", padx=8, pady=(0, 2))
         car = self._load_image("car.png")
@@ -243,6 +251,112 @@ class ClaimDashboard(tk.Tk):
     def _on_customer_menu_select(self, _event=None):
         if self.customer_menu.selection() == ("customer_upload",):
             self.customer_data_aggregate()
+
+    def _on_merge_menu_select(self, _event=None):
+        if self.merge_menu.selection() == ("merge_app",):
+            self.open_inspection_merge_app()
+
+    def open_inspection_merge_app(self):
+        # 최신 검수폴더 병합 프로젝트를 그대로 실행한다. 기존에 이 파일에
+        # 일부 기능만 복사해 두던 방식은 최신 app.py의 체크박스 폴더 선택,
+        # DATA 업로드/추가, 정규화/필터링 로직이 누락되는 원인이었다.
+        latest_app = os.path.join(os.path.dirname(__file__), "inspection_merge_app.py")
+        if os.path.exists(latest_app):
+            try:
+                subprocess.Popen([sys.executable, latest_app], cwd=os.path.dirname(latest_app))
+                return
+            except Exception as exc:
+                messagebox.showerror("검수폴더 병합앱 실행 오류", str(exc))
+                return
+        messagebox.showerror("검수폴더 병합앱 없음", f"최신 프로젝트를 찾을 수 없습니다.\n{latest_app}")
+        return
+
+        # 아래 구현은 최신 프로젝트가 없는 환경에서의 예비 코드로 유지합니다.
+        win = tk.Toplevel(self)
+        win.title("검수현황 엑셀 파일 합치기")
+        win.geometry("780x560")
+        win.minsize(680, 480)
+        win.configure(bg="#f4f4f4")
+        tk.Label(win, text="검수현황 엑셀 파일 합치기", font=(KOREAN_FONT, 18, "bold"), bg="#f4f4f4").pack(anchor="w", padx=20, pady=(18, 2))
+        tk.Label(win, text="파일명에서 년월을 읽어 '해당년월' 컬럼을 추가한 뒤 하나의 xlsx로 저장합니다.", fg="#444", bg="#f4f4f4").pack(anchor="w", padx=20)
+        controls = tk.Frame(win, bg="#f4f4f4"); controls.pack(fill="x", padx=20, pady=(14, 6))
+        tk.Button(controls, text="검수종합 현황 업로드", command=lambda: self._merge_pick_files(listbox)).pack(side="right", padx=3)
+        tk.Button(controls, text="검수종합 현황 다운로드", command=lambda: self._merge_run(listbox, win)).pack(side="right", padx=3)
+        area = tk.Frame(win, bg="#f4f4f4"); area.pack(fill="both", expand=True, padx=20)
+        listbox = tk.Listbox(area, selectmode="extended", font=("Segoe UI", 10), bg="white")
+        listbox.pack(side="left", fill="both", expand=True)
+        buttons = tk.Frame(area, bg="#f4f4f4"); buttons.pack(side="right", fill="y", padx=(12, 0))
+        tk.Button(buttons, text="여러 폴더 선택", command=lambda: self._merge_pick_folders(listbox)).pack(fill="x", pady=3)
+        tk.Button(buttons, text="여러 파일 선택", command=lambda: self._merge_pick_files(listbox)).pack(fill="x", pady=3)
+        tk.Button(buttons, text="폴더 하나 추가", command=lambda: self._merge_pick_folder(listbox)).pack(fill="x", pady=3)
+        tk.Button(buttons, text="선택 삭제", command=lambda: self._merge_delete_selected(listbox)).pack(fill="x", pady=3)
+        tk.Button(buttons, text="전체 삭제", command=lambda: listbox.delete(0, "end")).pack(fill="x", pady=3)
+        self._merge_status = tk.StringVar(value="월별 검수 폴더를 추가하세요.")
+        tk.Label(win, textvariable=self._merge_status, anchor="w", bg="#f4f4f4", fg="#555").pack(fill="x", padx=20, pady=10)
+
+    def _merge_add_paths(self, listbox, paths):
+        existing = set(listbox.get(0, "end"))
+        for path in paths:
+            if path not in existing: listbox.insert("end", path); existing.add(path)
+        self._merge_status.set(f"선택 항목 {listbox.size()}개")
+
+    def _merge_pick_folder(self, listbox):
+        path = filedialog.askdirectory(title="검수 폴더 선택")
+        if path: self._merge_add_paths(listbox, [path])
+
+    def _merge_pick_folders(self, listbox):
+        while True:
+            path = filedialog.askdirectory(title="검수 폴더 선택 (취소하면 종료)")
+            if not path: break
+            self._merge_add_paths(listbox, [path])
+
+    def _merge_pick_files(self, listbox):
+        paths = filedialog.askopenfilenames(title="검수현황 Excel 파일 선택", filetypes=[("Excel 파일", "*.xlsx *.xlsm")])
+        self._merge_add_paths(listbox, paths)
+
+    def _merge_delete_selected(self, listbox):
+        for i in reversed(listbox.curselection()): listbox.delete(i)
+
+    def _merge_run(self, listbox, win):
+        inputs = list(listbox.get(0, "end"))
+        files = []
+        for path in inputs:
+            if os.path.isdir(path):
+                for root, _dirs, names in os.walk(path):
+                    files.extend(sorted(os.path.join(root, f) for f in names if f.lower().endswith((".xlsx", ".xlsm"))))
+            elif os.path.isfile(path): files.append(path)
+        files = list(dict.fromkeys(files))
+        if not files: return messagebox.showwarning("검수현황 병합", "폴더 또는 Excel 파일을 먼저 추가하세요.", parent=win)
+        save = filedialog.asksaveasfilename(parent=win, title="병합 결과 저장", defaultextension=".xlsx", initialfile="검수종합_현황_병합.xlsx", filetypes=[("Excel 파일", "*.xlsx")])
+        if not save: return
+        try:
+            out = Workbook(); ws = out.active; ws.title = "검수종합 현황"; header_written = False; total = 0
+            for path in files:
+                src = openpyxl.load_workbook(path, read_only=True, data_only=True)
+                for sheet in src.worksheets:
+                    rows = list(sheet.iter_rows(values_only=True))
+                    if not rows: continue
+                    headers = [clean(v) for v in rows[0]]
+                    if not header_written:
+                        ws.append(headers + ["해당년월"]); header_written = True
+                    month = self._merge_month_from_name(os.path.basename(path))
+                    for row in rows[1:]:
+                        if any(v not in (None, "") for v in row): ws.append(list(row) + [month]); total += 1
+                src.close()
+            if not header_written: raise ValueError("읽을 수 있는 데이터가 없습니다.")
+            ws.freeze_panes = "A2"; ws.auto_filter.ref = ws.dimensions
+            out.save(save); self._merge_status.set(f"완료: {total:,}건 저장")
+            messagebox.showinfo("병합 완료", f"{total:,}건을 저장했습니다.\n{save}", parent=win)
+            try: os.startfile(save)
+            except OSError: pass
+        except Exception as exc:
+            messagebox.showerror("병합 오류", str(exc), parent=win)
+
+    def _merge_month_from_name(self, name):
+        m = re.search(r"((?:20)?\d{2})\s*[-_.년/ ]\s*(\d{1,2})\s*월?", name)
+        if not m: return ""
+        year = int(m.group(1)); year += 2000 if year < 100 else 0
+        return f"{year:04d}-{int(m.group(2)):02d}"
 
     def export_report(self):
         if not self.rows:
