@@ -1,4 +1,5 @@
 import os
+import json
 import re
 import subprocess
 import sys
@@ -48,6 +49,56 @@ class ClaimDashboard(tk.Tk):
         self.all_rows = []
         self.source = ""
         self._build_ui()
+        self._restore_saved_data()
+
+    @property
+    def _saved_data_path(self):
+        # GitHub에 함께 커밋할 수 있는 프로젝트 내 영구 저장 파일
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "claim_dashboard_data.json")
+
+    def _save_data(self):
+        """업로드 데이터를 프로젝트 파일에 저장해 재실행/PC 이동 후 복원한다."""
+        if not self.headers or not self.rows:
+            return
+        payload = {
+            "version": 1,
+            "source_name": os.path.basename(self.source) if self.source else "업로드 데이터",
+            "headers": [clean(v) for v in self.headers],
+            "rows": [[clean(v) for v in row] for row in self.rows],
+        }
+        temp_path = self._saved_data_path + ".tmp"
+        with open(temp_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+        os.replace(temp_path, self._saved_data_path)
+
+    def _restore_saved_data(self):
+        """저장된 업로드 데이터가 있으면 앱 시작 시 자동으로 대시보드에 반영한다."""
+        if not os.path.exists(self._saved_data_path):
+            return
+        try:
+            with open(self._saved_data_path, "r", encoding="utf-8") as f:
+                payload = json.load(f)
+            headers = payload.get("headers") or []
+            rows = payload.get("rows") or []
+            if not headers or not rows:
+                return
+            self.headers = headers
+            self.rows = rows
+            self.all_rows = list(rows)
+            self.source = payload.get("source_name", "저장된 업로드 데이터")
+            self.file_label.config(text=f"저장 데이터 · {self.source}")
+            self.status.config(text=f"{len(rows):,}건 복원됨 · 저장 데이터 자동 불러오기 완료")
+            if self.kpi_labels:
+                total = len(rows)
+                self.kpi_labels[0].config(text=f"{total:,}건")
+                self.kpi_labels[1].config(text=f"{total:,}건")
+                self.kpi_labels[2].config(text=f"{sum(1 for r in rows if len(r)>31 and clean(r[31])):,}건")
+                self.kpi_labels[3].config(text=f"{(total / max(total,1) * 1_000_000 / 3000):,.0f}")
+            self._fill_tree(headers, rows[:1000])
+            self._populate_filters()
+            self.render()
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            self.status.config(text=f"저장 데이터 복원 실패: {exc}")
 
     def _build_ui(self):
         self.option_add("*Font", (KOREAN_FONT, 10))
@@ -82,7 +133,7 @@ class ClaimDashboard(tk.Tk):
         country_icon = self._load_image("발생국가.png")
         self.country_icon = country_icon.subsample(16, 16) if country_icon else None
         if self.country_icon: self.image_refs.append(self.country_icon)
-        analysis_icon_path = r"D:\Pictures\1.2D아이콘\free-icon-growth-3281306.png"
+        analysis_icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", "images", "free-icon-growth-3281306.png")
         try:
             analysis_icon = tk.PhotoImage(file=analysis_icon_path)
             self.analysis_icon = analysis_icon.subsample(max(1, analysis_icon.width() // 22), max(1, analysis_icon.height() // 22))
@@ -859,6 +910,7 @@ class ClaimDashboard(tk.Tk):
         self.rows = [list(r) for r in it if any(v is not None for v in r)]
         self.all_rows = list(self.rows)
         self.source = path
+        self._save_data()
         self.file_label.config(text=os.path.basename(path))
         self.status.config(text=f"{len(self.rows):,}건 로드됨 · 열 수 {len(headers)} · 시트: {ws.title}")
         if self.kpi_labels:
