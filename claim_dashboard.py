@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, ttk
 from collections import Counter, defaultdict
 
 import openpyxl
+import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
 
@@ -879,7 +880,7 @@ class ClaimDashboard(tk.Tk):
             messagebox.showerror("고객사별 DATA 자동 오류", str(exc))
 
     def open_file(self):
-        path = filedialog.askopenfilename(filetypes=[("Excel 파일", "*.xlsx *.xlsm"), ("모든 파일", "*.*")])
+        path = filedialog.askopenfilename(filetypes=[("모든 Excel 파일", "*.xlsx *.xlsm *.xltx *.xltm *.xls *.xlt *.xlsb"), ("모든 파일", "*.*")])
         if path:
             try:
                 self.load(path)
@@ -901,18 +902,38 @@ class ClaimDashboard(tk.Tk):
             messagebox.showerror("분석 새로고침 오류", f"업로드 파일을 다시 읽지 못했습니다.\n{e}")
 
     def load(self, path):
-        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-        # 활성 시트가 빈 시트인 업로드 파일도 처리하도록 데이터가 가장 많은 시트 선택
-        ws = max(wb.worksheets, key=lambda sh: (sh.max_row or 0) * (sh.max_column or 0))
-        it = ws.iter_rows(values_only=True)
-        headers = list(next(it))
+        suffix = os.path.splitext(path)[1].lower()
+        if suffix in (".xls", ".xlt"):
+            # 구형 Excel 97-2003 형식은 openpyxl이 읽지 못하므로 xlrd를 통해 읽는다.
+            sheets = pd.read_excel(path, sheet_name=None, header=None, engine="xlrd")
+            frame = max(sheets.values(), key=lambda df: df.shape[0] * df.shape[1])
+            values = frame.where(pd.notna(frame), None).values.tolist()
+            sheet_name = next(name for name, df in sheets.items() if df is frame)
+            headers, rows = values[0], values[1:]
+        elif suffix == ".xlsb":
+            try:
+                sheets = pd.read_excel(path, sheet_name=None, header=None, engine="pyxlsb")
+            except ImportError as exc:
+                raise RuntimeError(".xlsb 파일을 읽으려면 pyxlsb 패키지가 필요합니다.\\n설치: pip install pyxlsb") from exc
+            frame = max(sheets.values(), key=lambda df: df.shape[0] * df.shape[1])
+            values = frame.where(pd.notna(frame), None).values.tolist()
+            sheet_name = next(name for name, df in sheets.items() if df is frame)
+            headers, rows = values[0], values[1:]
+        else:
+            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            # 활성 시트가 빈 시트인 업로드 파일도 처리하도록 데이터가 가장 많은 시트 선택
+            ws = max(wb.worksheets, key=lambda sh: (sh.max_row or 0) * (sh.max_column or 0))
+            it = ws.iter_rows(values_only=True)
+            headers = list(next(it))
+            rows = [list(r) for r in it if any(v is not None for v in r)]
+            sheet_name = ws.title
         self.headers = headers
-        self.rows = [list(r) for r in it if any(v is not None for v in r)]
+        self.rows = [list(r) for r in rows if any(v is not None for v in r)]
         self.all_rows = list(self.rows)
         self.source = path
         self._save_data()
         self.file_label.config(text=os.path.basename(path))
-        self.status.config(text=f"{len(self.rows):,}건 로드됨 · 열 수 {len(headers)} · 시트: {ws.title}")
+        self.status.config(text=f"{len(self.rows):,}건 로드됨 · 열 수 {len(headers)} · 시트: {sheet_name} · 형식: {suffix}")
         if self.kpi_labels:
             total = len(self.rows)
             self.kpi_labels[0].config(text=f"{total:,}건")
