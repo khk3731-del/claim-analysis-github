@@ -13,6 +13,7 @@ import openpyxl
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
+from claim_engine import ClaimDataEngine
 
 
 KOREAN_FONT = "Malgun Gothic"
@@ -49,6 +50,7 @@ class ClaimDashboard(tk.Tk):
         self.after(200, lambda: self.state("zoomed"))
         self.rows = []
         self.all_rows = []
+        self.engine = ClaimDataEngine()
         self.source = ""
         self._inspection_assembly_cache = None
         self._render_job = None
@@ -101,6 +103,7 @@ class ClaimDashboard(tk.Tk):
             self.headers = headers
             self.rows = rows
             self.all_rows = list(rows)
+            self.engine.set_data(headers, rows)
             self.source = payload.get("source_name", "저장된 업로드 데이터")
             self.file_label.config(text=f"저장 데이터 · {self.source}")
             self.status.config(text=f"{len(rows):,}건 복원됨 · 저장 데이터 자동 불러오기 완료")
@@ -972,6 +975,7 @@ class ClaimDashboard(tk.Tk):
         self.headers = headers
         self.rows = [list(r) for r in rows if any(v is not None for v in r)]
         self.all_rows = list(self.rows)
+        self.engine.set_data(self.headers, self.all_rows)
         self.source = path
         self._save_data()
         self.file_label.config(text=os.path.basename(path))
@@ -1127,7 +1131,7 @@ class ClaimDashboard(tk.Tk):
                            and (model == "전체" or (len(r) > 45 and clean(r[45]) == model))
                            and (market == "전체" or (len(r) > 1 and clean(r[1]) == market))
                            and (not names or (len(r) > 41 and clean(r[41]) in names))}
-        self.rows = [r for r in self.all_rows if (company == "전체" or (len(r) > 0 and clean(r[0]) == company)) and (model == "전체" or (len(r) > 45 and clean(r[45]) == model)) and (market == "전체" or (len(r) > 1 and clean(r[1]) == market)) and (not parts or (len(r) > 11 and clean(r[11]) in parts)) and (not names or (len(r) > 41 and clean(r[41]) in names))]
+        self.rows = self.engine.filter_rows(company, model, market, parts, names)
         name_text = "전체" if not names else ", ".join(sorted(names)[:3]) + (" 외" if len(names) > 3 else "")
         all_parts_selected = bool(available_parts) and parts == available_parts
         part_text = "전체" if not parts or all_parts_selected else ", ".join(sorted(parts)[:3]) + (" 외" if len(parts) > 3 else "")
