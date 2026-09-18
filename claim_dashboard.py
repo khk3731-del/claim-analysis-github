@@ -1209,10 +1209,21 @@ class ClaimDashboard(tk.Tk):
     def _country_counter_all(self):
         return self._country_counter(limit=None)
 
+    def apply_modern_style(self, canvas, x, y, w, h, title=""):
+        """Apply the shared manufacturing-quality dashboard chart style."""
+        canvas.create_rectangle(x, y, x+w, y+h, fill="#FFFFFF", outline="")
+        # very light horizontal grid only; top/right borders intentionally omitted
+        for step in range(5):
+            gy = y + 28 + (h - 70) * step / 4
+            canvas.create_line(x+35, gy, x+w-12, gy, fill="#E5E7EB", width=1)
+        if title:
+            canvas.create_text(x+8, y+4, text=title, anchor="nw", font=("Malgun Gothic", 12, "bold"), fill="#0F172A")
+        return x + 35, y + h - 38, h - 65
+
     def _canvas_chart(self, x, y, w, h, title, data, color):
         items = list(data.items()) if isinstance(data, Counter) else list(data)
         items = items[:18]; maxv = max([v for _,v in items] or [1]); left=x+35; bottom=y+h-38
-        self.canvas.create_rectangle(x, y, x+w, y+h, outline="#777")
+        left, bottom, plot_h = self.apply_modern_style(self.canvas, x, y, w, h, title)
         icons = {"2)": ("△", "#ef4444"), "3)": ("◷", "#2563eb"), "4)": ("◉", "#16a34a"), "5)": ("◎", "#6d28d9")}
         icon, icon_color = next((v for k, v in icons.items() if title.startswith(k)), ("▥", "#10243d"))
         if title.startswith("2)") and self.issue_icon:
@@ -1225,23 +1236,25 @@ class ClaimDashboard(tk.Tk):
             self.canvas.create_image(x+24, y-18, image=self.country_icon, anchor="center")
         else:
             self.canvas.create_text(x, y-7, text=icon, anchor="sw", font=(KOREAN_FONT, 18, "bold"), fill=icon_color)
-        self.canvas.create_text(x+58, y-7, text=title, anchor="sw", font=(KOREAN_FONT, 15, "bold"), fill="#10243d")
+        # title is rendered by apply_modern_style
         bw = max(8, (w-50)/max(1,len(items))-5)
         for i,(lab,v) in enumerate(items):
-            bx=left+i*(bw+5); bh=(h-65)*v/maxv; by=bottom-bh
-            self._gradient_bar(bx, by, bx+bw, bottom, color, "#ffffff")
-            self.canvas.create_text(bx+bw/2, by-3, text=f"{v:,}", anchor="s", font=(KOREAN_FONT, 8))
+            bx=left+i*(bw+5); bh=plot_h*v/maxv; by=bottom-bh
+            self._gradient_bar(bx, by, bx+bw, bottom, "#2563EB", "#CBD5E1")
+            if v:
+                self.canvas.create_text(bx+bw/2, by-3, text=f"{v:,}", anchor="s", font=("Malgun Gothic", 8), fill="#334155")
             label = str(lab)
             if len(label) > 8:
                 mid = (len(label) + 1) // 2
                 label = label[:mid] + "\n" + label[mid:]
-            self.canvas.create_text(bx+bw/2, bottom+4, text=label, anchor="n", angle=0, font=(KOREAN_FONT, 8))
+            self.canvas.create_text(bx+bw/2, bottom+4, text=label, anchor="n", angle=0, font=("Malgun Gothic", 8), fill="#475569")
 
     def _gradient_bar(self, x1, y1, x2, y2, top_color, bottom_color):
         # 단색 막대: 그라데이션 효과 취소
-        self.canvas.create_rectangle(x1, y1, x2, y2, fill=top_color, outline="#71808a")
+        self.canvas.create_rectangle(x1, y1, x2, y2, fill=top_color, outline="")
 
     def _monthly_combo(self, x, y, w, h):
+        self.apply_modern_style(self.canvas, x, y, w, h)
         # 발생월: 통보서 앞자리 6개(index 2)
         occur = Counter(month_key(clean(r[2])[:6]) for r in self.rows if len(r)>2 and clean(r[2])[:6])
         # 생산월: 업로드 DATA의 Excel AG열(0-based index 32)을 사용한다.
@@ -1289,8 +1302,8 @@ class ClaimDashboard(tk.Tk):
             self.canvas.create_text(bx+bw+2, bottom+4, text=str(lab), anchor="n", angle=0, font=(KOREAN_FONT, 8))
             # 발생율 꺾은선: 보조축을 차트 우측에 대응
             px=bx+bw+1; py=bottom-chart_h*rate/maxr
-            if i: self.canvas.create_line(prevx, prevy, px, py, fill="#ef4444", width=2)
-            self.canvas.create_oval(px-3,py-3,px+3,py+3,fill="#ef4444",outline="#ef4444")
+            if i: self.canvas.create_line(prevx, prevy, px, py, fill="#F97316", width=2)
+            self.canvas.create_oval(px-3,py-3,px+3,py+3,fill="#F97316",outline="#F97316")
             prevx,prevy=px,py
         # 그래프 하단 월별 DATA 표
         table_y = bottom + 58
