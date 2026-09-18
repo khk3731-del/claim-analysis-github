@@ -1,5 +1,6 @@
 import os
 import json
+import random
 import re
 import subprocess
 import sys
@@ -274,7 +275,7 @@ class ClaimDashboard(tk.Tk):
         self.top_scroll = ttk.Scrollbar(self.top_frame, orient="horizontal", command=self.top_canvas.xview)
         self.top_scroll.pack(side="bottom", fill="x")
         self.top_canvas.configure(xscrollcommand=self.top_scroll.set)
-        self.fixed_table = tk.Canvas(self.top_frame, background="white", highlightthickness=0, width=105, height=105)
+        self.fixed_table = tk.Canvas(self.top_frame, background="white", highlightthickness=0, width=105, height=125)
         self.bottom_canvas = tk.Canvas(self.dashboard_tab, background="white", highlightthickness=0)
         self.bottom_canvas.grid(row=1, column=0, sticky="nsew")
         self.canvas = self.bottom_canvas
@@ -1149,12 +1150,12 @@ class ClaimDashboard(tk.Tk):
         # 표의 실제 위치를 기준으로 배치해 스크롤 영역과 자연스럽게 정렬
         self.fixed_table.place_configure(x=15, y=self.top_canvas.winfo_y() + labels_y)
         self.tk.call("raise", str(self.fixed_table))
-        fixed_fills = ["#e8f1fb", "#fff1f2", "#eef6ff", "#f3efff"]
-        for i, name in enumerate(("월", "생산월", "발생월", "PPM")):
+        fixed_fills = ["#e8f1fb", "#fff1f2", "#eef6ff", "#eef6ff", "#f3efff"]
+        for i, name in enumerate(("월", "생산월", "발생월", "조립수", "PPM")):
             yy = labels_y + i*24
             self.fixed_table.create_rectangle(0, yy-labels_y, 105, yy-labels_y+24, fill=fixed_fills[i], outline="#c8d3df")
             self.fixed_table.create_text(52, yy-labels_y+12, text=name, anchor="center", font=(TABLE_FONT, 10, "bold"), fill="#20354b")
-        self.fixed_table.create_rectangle(0, 0, 105, 96, outline="#c8d3df", width=1)
+        self.fixed_table.create_rectangle(0, 0, 105, 120, outline="#c8d3df", width=1)
         self.top_canvas.xview_moveto(1.0)
         self.canvas = self.bottom_canvas
         # 사진의 현상코드 값(소음, 경고등 점등, 누기 등)이 들어 있는 컬럼
@@ -1265,7 +1266,9 @@ class ClaimDashboard(tk.Tk):
         prod_vals = [prod.get(k, 0) for k in labels]
         if not any(prod_vals): prod_vals = [v * 80 for v in occ_vals]
         # 더미 생산수 환경의 표시 PPM을 200~500 수준으로 보정
-        rates = [o / p * 1_000_000 / 3000 if p else 0 for o,p in zip(occ_vals, prod_vals)]
+        # 조립수는 요청된 범위의 고정 더미 DATA로 표시한다.
+        assembly_vals = [random.Random(f"assembly-count:{label}").randint(300_000, 400_000) for label in labels]
+        rates = [p / a * 1_000_000 if a else 0 for p, a in zip(prod_vals, assembly_vals)]
         bottom=y+h-38; chart_h=h-65; n=len(labels)
         label_w = 105
         cell_w = max(52, (w-65)/max(1,n))
@@ -1286,8 +1289,8 @@ class ClaimDashboard(tk.Tk):
         # 그래프 하단 월별 DATA 표
         table_y = bottom + 58
         row_h = 24
-        rows = [("월", labels), ("생산월", prod_vals), ("발생월", occ_vals), ("PPM", [round(v) for v in rates])]
-        row_fills = ["#e8f1fb", "#fff1f2", "#eef6ff", "#f3efff"]
+        rows = [("월", labels), ("생산월", prod_vals), ("발생월", occ_vals), ("조립수", assembly_vals), ("PPM", [round(v) for v in rates])]
+        row_fills = ["#e8f1fb", "#fff1f2", "#eef6ff", "#eef6ff", "#f3efff"]
         for ri, (name, vals) in enumerate(rows):
             yy = table_y + ri*row_h
             self.canvas.create_rectangle(x, yy, x+label_w, yy+row_h, fill=row_fills[ri], outline="#b8c7d6")
@@ -1300,8 +1303,9 @@ class ClaimDashboard(tk.Tk):
             # 화면에서 숨긴 21년 이전 월도 전체 발생월 합계에는 포함한다.
             total_occurrence = sum(occur.values())
             total_production = sum(prod.values())
+            total_assembly = sum(assembly_vals)
             # 표의 행 순서: 생산월 → 발생월 → PPM
-            total_values = ["합계", total_production, total_occurrence, round(total_occurrence / total_production * 1_000_000 / 3000) if total_production else 0]
+            total_values = ["합계", total_production, total_occurrence, total_assembly, round(total_production / total_assembly * 1_000_000) if total_assembly else 0]
             tv = total_values[ri]
             self.canvas.create_rectangle(total_x, yy, total_x+cell_w, yy+row_h, fill="#dceaf2" if ri == 0 else "#fff1d6", outline="#c8a96b")
             self.canvas.create_text(total_x+cell_w/2, yy+row_h/2, text=f"{tv:,}" if isinstance(tv,(int,float)) else str(tv), anchor="center", font=(KOREAN_FONT, 8, "bold"))
