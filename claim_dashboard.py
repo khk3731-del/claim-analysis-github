@@ -1217,12 +1217,9 @@ class ClaimDashboard(tk.Tk):
     def _monthly_combo(self, x, y, w, h):
         # 발생월: 통보서 앞자리 6개(index 2)
         occur = Counter(month_key(clean(r[2])[:6]) for r in self.rows if len(r)>2 and clean(r[2])[:6])
-        # 생산월: 업로드 파일에서 YYYY-MM 형식 값이 가장 많은 조립월 컬럼 자동 탐색
-        assembly_col, best_count = 31, -1
-        for ci in range(min(50, max((len(r) for r in self.rows), default=0))):
-            count = sum(1 for r in self.rows[:3000] if len(r) > ci and re.fullmatch(r"20\d{2}-\d{2}", clean(r[ci])))
-            if count > best_count:
-                assembly_col, best_count = ci, count
+        # 생산월: 업로드 DATA의 Excel AG열(0-based index 32)을 사용한다.
+        # 21년 이전 생산 DATA도 원본에는 유지하되 월별 표에서는 숨긴다.
+        assembly_col = 32
         # 생산월 누락/범위 밖 행은 해당 행의 발생월에 배정해 모든 클레임이 생산월에 포함되도록 함
         prod = Counter()
         for r in self.rows:
@@ -1235,7 +1232,10 @@ class ClaimDashboard(tk.Tk):
                 yy, mm = v.split('.'); return int(yy), int(mm)
             except Exception: return (999, 999)
         # 월별 축은 통보서에서 추출한 발생월만 사용해 생산차량의 과거 연도가 섞이지 않게 함
-        labels = sorted(set(occur), key=sort_month)
+        labels = sorted(
+            (label for label in set(occur) if sort_month(label) >= (21, 1)),
+            key=sort_month,
+        )
         if not labels: return
         # 생산월 데이터가 없는 경우에도 비교가 가능하도록 더미 생산수 생성
         occ_vals = [occur[k] for k in labels]
