@@ -1263,7 +1263,7 @@ class ClaimDashboard(tk.Tk):
         # 그래프 하단 월별 DATA 표
         table_y = bottom + 58
         row_h = 24
-        rows = [("월", labels), ("발생월", occ_vals), ("생산월", prod_vals), ("PPM", [round(v) for v in rates])]
+        rows = [("월", labels), ("생산월", prod_vals), ("발생월", occ_vals), ("PPM", [round(v) for v in rates])]
         row_fills = ["#e8f1fb", "#fff1f2", "#eef6ff", "#f3efff"]
         for ri, (name, vals) in enumerate(rows):
             yy = table_y + ri*row_h
