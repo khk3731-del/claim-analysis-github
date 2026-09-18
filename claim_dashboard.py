@@ -15,7 +15,7 @@ from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
 
 
-KOREAN_FONT = "Noto Sans KR"
+KOREAN_FONT = "Malgun Gothic"
 TABLE_FONT = "HY헤드라인M"
 
 
@@ -43,7 +43,7 @@ class ClaimDashboard(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("클레임 자동 분석")
-        self.geometry("1500x940")
+        self.geometry("1700x980")
         self.minsize(1100, 700)
         # 모니터 해상도에 맞춰 전체 분석 화면이 보이도록 기본 최대화
         self.after(200, lambda: self.state("zoomed"))
@@ -121,21 +121,21 @@ class ClaimDashboard(tk.Tk):
         style = ttk.Style(self)
         try: style.theme_use("clam")
         except tk.TclError: pass
-        style.configure("TFrame", background="#f7f9fc")
-        style.configure("TNotebook", background="#f7f9fc", borderwidth=0)
-        style.configure("TNotebook.Tab", background="#eef2f7", padding=(12, 6))
+        style.configure("TFrame", background="#eaf4ff")
+        style.configure("TNotebook", background="#eaf4ff", borderwidth=0)
+        style.configure("TNotebook.Tab", background="#e8f1fb", padding=(14, 8), font=(KOREAN_FONT, 10, "bold"))
         style.map("TNotebook.Tab", background=[("selected", "#ffffff")])
         style.configure("TLabel", background="#ffffff")
         style.configure("TButton", background="#ffffff", foreground="#20354b")
         style.configure("TCombobox", fieldbackground="#ffffff", background="#ffffff", foreground="#20354b")
-        style.configure("Accent.TButton", background="#1769d4", foreground="white", padding=(12, 6), font=(KOREAN_FONT, 10, "bold"))
+        style.configure("Accent.TButton", background="#1769d4", foreground="white", padding=(14, 8), font=(KOREAN_FONT, 10, "bold"))
         style.configure("Card.TFrame", background="white", relief="solid", borderwidth=1)
-        self.configure(background="#f4f7fb")
+        self.configure(background="#eaf4ff")
         body = tk.PanedWindow(self, orient="horizontal", sashwidth=7, sashrelief="raised", bg="#cbd5e1", bd=0, relief="flat")
         body.pack(fill="both", expand=True)
-        sidebar = tk.Frame(body, width=165, background="#10243d")
+        sidebar = tk.Frame(body, width=215, background="#082b52")
         sidebar.pack_propagate(False)
-        body.add(sidebar, minsize=130, width=165, stretch="never")
+        body.add(sidebar, minsize=190, width=215, stretch="never")
         self.image_refs = []
         issue_icon = self._load_image("현상명.png")
         self.issue_icon = issue_icon.subsample(14, 14) if issue_icon else None
@@ -159,15 +159,15 @@ class ClaimDashboard(tk.Tk):
         logo = self._load_image("company_logo.png")
         if logo:
             logo_small = logo.subsample(max(1, logo.width() // 150), max(1, logo.height() // 48))
-            logo_label = tk.Label(sidebar, image=logo_small, bg="#10243d")
+            logo_label = tk.Label(sidebar, image=logo_small, bg="#082b52")
             logo_label.pack(pady=(18, 4))
             self.image_refs.append(logo_small)
         else:
-            tk.Label(sidebar, text="▱", fg="#66a9ff", bg="#10243d", font=(KOREAN_FONT, 28, "bold")).pack(pady=(24, 0))
-        tk.Label(sidebar, text="클레임 자동 분석", fg="white", bg="#10243d", font=(KOREAN_FONT, 14, "bold")).pack()
-        tk.Label(sidebar, text="Claim Analytics", fg="#a9bfd8", bg="#10243d", font=("Segoe UI", 9)).pack(pady=(0, 25))
+            tk.Label(sidebar, text="▱", fg="#66a9ff", bg="#082b52", font=(KOREAN_FONT, 28, "bold")).pack(pady=(24, 0))
+        tk.Label(sidebar, text="클레임 자동 분석", fg="white", bg="#082b52", font=(KOREAN_FONT, 17, "bold")).pack()
+        tk.Label(sidebar, text="Claim Analytics", fg="#a9bfd8", bg="#082b52", font=("Segoe UI", 10)).pack(pady=(0, 25))
         menu_style = ttk.Style(self)
-        menu_style.configure("Sidebar.Treeview", background="#10243d", fieldbackground="#10243d", foreground="white", borderwidth=0, rowheight=30, font=(KOREAN_FONT, 10))
+        menu_style.configure("Sidebar.Treeview", background="#082b52", fieldbackground="#082b52", foreground="white", borderwidth=0, rowheight=34, font=(KOREAN_FONT, 11))
         menu_style.map("Sidebar.Treeview", background=[("selected", "#1769d4")], foreground=[("selected", "white")])
         menu = ttk.Treeview(sidebar, show="tree", selectmode="browse", style="Sidebar.Treeview", height=5)
         menu.pack(fill="x", padx=8, pady=(0, 10))
@@ -190,18 +190,18 @@ class ClaimDashboard(tk.Tk):
         merge_menu.insert(merge_root, "end", text="검수폴더 병합앱", iid="merge_app")
         merge_menu.bind("<<TreeviewSelect>>", self._on_merge_menu_select)
         self.merge_menu = merge_menu
-        visual = tk.Frame(sidebar, bg="#10243d")
+        visual = tk.Frame(sidebar, bg="#082b52")
         visual.pack(side="bottom", fill="x", padx=8, pady=(0, 2))
         car = self._load_image("car.png")
         if car:
             car_small = car.subsample(max(1, car.width() // 140), max(1, car.height() // 70))
-            tk.Label(visual, image=car_small, bg="#10243d").pack(); self.image_refs.append(car_small)
+            tk.Label(visual, image=car_small, bg="#082b52").pack(); self.image_refs.append(car_small)
         muffler = self._load_image("muffler.png")
         if muffler:
             muffler_small = muffler.subsample(max(1, muffler.width() // 130), max(1, muffler.height() // 65))
-            tk.Label(visual, image=muffler_small, bg="#10243d").pack(); self.image_refs.append(muffler_small)
-        tk.Label(sidebar, text="\n데이터 정보\n\n업로드 파일\n21년~26년 클레임 DATA\n\n총 로드 수\n7,706건", justify="left", anchor="nw", padx=12, pady=12, fg="#b8c8da", bg="#193451", font=(KOREAN_FONT, 8)).pack(side="bottom", fill="x", padx=10, pady=8)
-        content = tk.Frame(body, background="#f4f7fb")
+            tk.Label(visual, image=muffler_small, bg="#082b52").pack(); self.image_refs.append(muffler_small)
+        tk.Label(sidebar, text="\n데이터 정보\n\n업로드 파일\n21년~26년 클레임 DATA\n\n총 로드 수\n7,706건", justify="left", anchor="nw", padx=12, pady=12, fg="#b8c8da", bg="#123e68", font=(KOREAN_FONT, 9)).pack(side="bottom", fill="x", padx=10, pady=8)
+        content = tk.Frame(body, background="#eaf4ff")
         body.add(content, minsize=700, stretch="always")
         top = tk.Frame(content, background="#ffffff", padx=8, pady=8)
         top.pack(fill="x")
