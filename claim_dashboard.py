@@ -10,6 +10,7 @@ from collections import Counter, defaultdict
 
 import openpyxl
 import pandas as pd
+import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
 
@@ -1218,7 +1219,9 @@ class ClaimDashboard(tk.Tk):
     def _monthly_combo(self, x, y, w, h):
         # 발생월: 통보서 앞자리 6개(index 2)
         occur = Counter(month_key(clean(r[2])[:6]) for r in self.rows if len(r)>2 and clean(r[2])[:6])
-        # 생산월: 업로드 파일에서 YYYY-MM 형식 값이 가장 많은 조립월 컬럼 자동 탐색
+        # 생산월: 검수폴더 병합앱이 등록한 DATA의 해당년월별 수량누계 합계
+        inspection_prod = self._inspection_production_by_month()
+        # 검수종합 DATA가 없을 때는 기존 클레임 업로드 데이터 기반 계산을 유지
         assembly_col, best_count = 31, -1
         for ci in range(min(50, max((len(r) for r in self.rows), default=0))):
             count = sum(1 for r in self.rows[:3000] if len(r) > ci and re.fullmatch(r"20\d{2}-\d{2}", clean(r[ci])))
@@ -1240,7 +1243,7 @@ class ClaimDashboard(tk.Tk):
         if not labels: return
         # 생산월 데이터가 없는 경우에도 비교가 가능하도록 더미 생산수 생성
         occ_vals = [occur[k] for k in labels]
-        prod_vals = [prod.get(k, 0) for k in labels]
+        prod_vals = [inspection_prod.get(k, prod.get(k, 0)) for k in labels]
         if not any(prod_vals): prod_vals = [v * 80 for v in occ_vals]
         # 더미 생산수 환경의 표시 PPM을 200~500 수준으로 보정
         rates = [o / p * 1_000_000 / 3000 if p else 0 for o,p in zip(occ_vals, prod_vals)]
@@ -1298,6 +1301,29 @@ class ClaimDashboard(tk.Tk):
         self.canvas.create_text(x+w-117,y+17,text="생산월",anchor="w",font=(KOREAN_FONT,10))
         self.canvas.create_line(x+w-60,y+17,x+w-35,y+17,fill="#1769ff",width=3)
         self.canvas.create_text(x+w-28,y+17,text="발생율",anchor="w",font=(KOREAN_FONT,10))
+
+    def _inspection_production_by_month(self):
+        """Return production totals from the inspection merge app's registered data."""
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "검수종합_현황.xlsx")
+        if not os.path.exists(path):
+            return {}
+        try:
+            frame = pd.read_excel(path)
+            columns = {re.sub(r"\s+", "", str(c)): c for c in frame.columns}
+            month_col = columns.get("해당년월")
+            quantity_col = columns.get("수량누계")
+            if not month_col or not quantity_col:
+                return {}
+            months = frame[month_col].map(month_key)
+            quantities = pd.to_numeric(
+                frame[quantity_col].astype("string").str.replace(",", "", regex=False),
+                errors="coerce",
+            ).fillna(0)
+            totals = quantities.groupby(months).sum()
+            return {str(month): float(value) for month, value in totals.items() if str(month)}
+        except Exception:
+            # 분석 화면은 검수 DATA가 잠겨 있거나 아직 등록되지 않아도 계속 표시한다.
+            return {}
 
     def _usage(self):
         vals = [num(r[37]) for r in self.rows if len(r) > 37 and num(r[37]) is not None]
