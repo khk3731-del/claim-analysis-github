@@ -1064,7 +1064,6 @@ class ClaimDashboard(tk.Tk):
         self.selected_parts = set()
         self.name_var.set("전체")
         self.part_var.set("전체")
-        self._update_part_options()
         self.apply_filters()
 
     def open_name_selector(self):
@@ -1104,7 +1103,6 @@ class ClaimDashboard(tk.Tk):
     def model_changed(self):
         self.selected_names = set()
         self.name_var.set("전체")
-        self._update_part_options()
         self.apply_filters()
 
     def apply_filters(self):
