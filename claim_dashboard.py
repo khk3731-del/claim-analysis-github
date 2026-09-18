@@ -1299,8 +1299,9 @@ class ClaimDashboard(tk.Tk):
             total_x = x + label_w + len(labels) * cell_w
             # 화면에서 숨긴 21년 이전 월도 전체 발생월 합계에는 포함한다.
             total_occurrence = sum(occur.values())
+            total_production = sum(prod.values())
             # 표의 행 순서: 생산월 → 발생월 → PPM
-            total_values = ["합계", sum(prod_vals), total_occurrence, round(total_occurrence / sum(prod_vals) * 1_000_000 / 3000) if sum(prod_vals) else 0]
+            total_values = ["합계", total_production, total_occurrence, round(total_occurrence / total_production * 1_000_000 / 3000) if total_production else 0]
             tv = total_values[ri]
             self.canvas.create_rectangle(total_x, yy, total_x+cell_w, yy+row_h, fill="#dceaf2" if ri == 0 else "#fff1d6", outline="#c8a96b")
             self.canvas.create_text(total_x+cell_w/2, yy+row_h/2, text=f"{tv:,}" if isinstance(tv,(int,float)) else str(tv), anchor="center", font=(KOREAN_FONT, 8, "bold"))
