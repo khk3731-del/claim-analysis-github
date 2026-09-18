@@ -450,9 +450,10 @@ class ClaimDashboard(tk.Tk):
             assembly_text = clean(r[assembly_col]) if len(r) > assembly_col else ""
             assembly_month = month_key(assembly_text) if re.search(r"20\d{2}", assembly_text) else ""
             prod[assembly_month or occurrence_month] += 1
-        labels = sorted((s for s in occur if (int(s.split('.')[0]), int(s.split('.')[1])) >= (21, 1)), key=lambda s: (int(s.split('.')[0]), int(s.split('.')[1])))
+        visible_months = set(occur) | set(prod)
+        labels = sorted((s for s in visible_months if (int(s.split('.')[0]), int(s.split('.')[1])) >= (21, 1)), key=lambda s: (int(s.split('.')[0]), int(s.split('.')[1])))
         for row_index, lab in enumerate(labels, table_header_row + 1):
-            occurrence_count = occur[lab]
+            occurrence_count = occur.get(lab, 0)
             production_count = prod.get(lab, 0)
             ppm = round(occurrence_count / production_count * 1_000_000 / 3000) if production_count else 0
             ws.cell(row_index, 1, lab)
@@ -1287,13 +1288,15 @@ class ClaimDashboard(tk.Tk):
                 yy, mm = v.split('.'); return int(yy), int(mm)
             except Exception: return (999, 999)
         # 월별 축은 통보서에서 추출한 발생월만 사용해 생산차량의 과거 연도가 섞이지 않게 함
+        # 조립수만 있고 클레임이 없는 월도 표/그래프에서 유지한다.
+        visible_months = (set(occur) | set(prod))
         labels = sorted(
-            (label for label in set(occur) if sort_month(label) >= (21, 1)),
+            (label for label in visible_months if sort_month(label) >= (21, 1)),
             key=sort_month,
         )
         if not labels: return
         # 생산월 데이터가 없는 경우에도 비교가 가능하도록 더미 생산수 생성
-        occ_vals = [occur[k] for k in labels]
+        occ_vals = [occur.get(k, 0) for k in labels]
         prod_vals = [prod.get(k, 0) for k in labels]
         if not any(prod_vals): prod_vals = [v * 80 for v in occ_vals]
         # 더미 생산수 환경의 표시 PPM을 200~500 수준으로 보정
