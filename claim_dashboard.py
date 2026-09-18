@@ -1282,10 +1282,11 @@ class ClaimDashboard(tk.Tk):
         maxv=max(max(occ_vals or [1]), max(prod_vals or [1])); maxr=max(max(rates or [0]), 1)
         for i,(lab,o,p,rate) in enumerate(zip(labels,occ_vals,prod_vals,rates)):
             bx=left+i*group+group*.12; oh=chart_h*o/maxv; ph=chart_h*p/maxv
-            self._gradient_bar(bx, bottom-oh, bx+bw, bottom, "#2563eb", "#2563eb")
-            self._gradient_bar(bx+bw+2, bottom-ph, bx+bw*2+2, bottom, "#d9e5ee", "#d9e5ee")
+            # 생산월은 왼쪽(회색), 발생월은 오른쪽(파랑)으로 배치
+            self._gradient_bar(bx, bottom-ph, bx+bw, bottom, "#d9e5ee", "#d9e5ee")
+            self._gradient_bar(bx+bw+2, bottom-oh, bx+bw*2+2, bottom, "#2563eb", "#2563eb")
             if n <= 30:
-                self.canvas.create_text(bx+bw/2, bottom-oh-2, text=f"{o:,}", anchor="s", font=(KOREAN_FONT, 7))
+                self.canvas.create_text(bx+bw*1.5+2, bottom-oh-2, text=f"{o:,}", anchor="s", font=(KOREAN_FONT, 7))
             self.canvas.create_text(bx+bw+2, bottom+4, text=str(lab), anchor="n", angle=0, font=(KOREAN_FONT, 8))
             # 발생율 꺾은선: 보조축을 차트 우측에 대응
             px=bx+bw+1; py=bottom-chart_h*rate/maxr
