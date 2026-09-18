@@ -420,7 +420,11 @@ class ClaimDashboard(tk.Tk):
         ws["A1"] = "클레임 자동 분석"; ws["A2"] = "1) 월별 발생 현황 · 발생율(PPM)"
         ws["A1"].font = openpyxl.styles.Font(name="Noto Sans KR", size=16, bold=True, color="10243D")
         ws["A2"].font = openpyxl.styles.Font(name="Noto Sans KR", size=12, bold=True, color="10243D")
-        ws.append([]); ws.append(["월", "생산월", "발생월", "PPM"])
+        table_header_row = 22
+        ws.cell(table_header_row, 1, "월")
+        ws.cell(table_header_row, 2, "생산월")
+        ws.cell(table_header_row, 3, "발생월")
+        ws.cell(table_header_row, 4, "PPM")
         occur = Counter(month_key(clean(r[2])[:6]) for r in self.rows if len(r) > 2 and clean(r[2])[:6])
         assembly_col = 32  # 업로드 DATA의 Excel AG열
         prod = Counter()
@@ -431,18 +435,22 @@ class ClaimDashboard(tk.Tk):
             assembly_month = month_key(r[assembly_col]) if len(r) > assembly_col and re.fullmatch(r"20\d{2}-\d{2}", clean(r[assembly_col])) else ""
             prod[assembly_month or occurrence_month] += 1
         labels = sorted((s for s in occur if (int(s.split('.')[0]), int(s.split('.')[1])) >= (21, 1)), key=lambda s: (int(s.split('.')[0]), int(s.split('.')[1])))
-        for lab in labels:
+        for row_index, lab in enumerate(labels, table_header_row + 1):
             occurrence_count = occur[lab]
             production_count = prod.get(lab, 0)
             ppm = round(occurrence_count / production_count * 1_000_000 / 3000) if production_count else 0
-            ws.append([lab, production_count, occurrence_count, ppm])
+            ws.cell(row_index, 1, lab)
+            ws.cell(row_index, 2, production_count)
+            ws.cell(row_index, 3, occurrence_count)
+            ws.cell(row_index, 4, ppm)
         chart = BarChart(); chart.title = "1) 월별 발생 현황 · 발생율(PPM)"; chart.y_axis.title = "건수"; chart.x_axis.title = "월"
-        chart.add_data(Reference(ws, min_col=2, max_col=3, min_row=4, max_row=ws.max_row), titles_from_data=True)
-        chart.set_categories(Reference(ws, min_col=1, min_row=5, max_row=ws.max_row)); chart.height = 8; chart.width = 24
+        data_last_row = table_header_row + len(labels)
+        chart.add_data(Reference(ws, min_col=2, max_col=3, min_row=table_header_row, max_row=data_last_row), titles_from_data=True)
+        chart.set_categories(Reference(ws, min_col=1, min_row=table_header_row + 1, max_row=data_last_row)); chart.height = 8; chart.width = 24
         ws.add_chart(chart, "A3")
         sections = [("2) 현상별 분석", self._top5_other(34)), ("3) 사용기간 분석", self._usage()), ("4) 주행거리 분석", self._mileage())]
         if self.market_var.get() != "D": sections.append(("5) 국가별 분석", self._top5_items(self._country_counter())))
-        positions = ["A22", "G22", "M22", "S22"]
+        positions = ["A55", "G55", "M55", "S55"]
         for pos, (title, items) in zip(positions, sections):
             start_col = 40 + positions.index(pos) * 3
             ws.cell(1, start_col, title); ws.cell(2, start_col, "항목"); ws.cell(2, start_col + 1, "건수")
@@ -452,7 +460,7 @@ class ClaimDashboard(tk.Tk):
             ws.add_chart(c, pos)
         for col in range(40, 52): ws.column_dimensions[openpyxl.utils.get_column_letter(col)].hidden = True
         for col in range(1, 26): ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 10
-        ws.freeze_panes = "A5"; ws.sheet_view.showGridLines = False
+        ws.freeze_panes = "A23"; ws.sheet_view.showGridLines = False
         ws.sheet_properties.pageSetUpPr.fitToPage = True; ws.page_setup.orientation = "landscape"; ws.page_setup.fitToWidth = 1; ws.page_setup.fitToHeight = 1
         ws.print_area = "A1:Z45"
         wb.save(path)
