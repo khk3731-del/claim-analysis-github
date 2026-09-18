@@ -9,8 +9,6 @@ from tkinter import filedialog, messagebox, ttk
 from collections import Counter, defaultdict
 
 import openpyxl
-import pandas as pd
-import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
 
@@ -50,7 +48,6 @@ class ClaimDashboard(tk.Tk):
         self.rows = []
         self.all_rows = []
         self.source = ""
-        self._inspection_prod_cache = None
         self._build_ui()
         self._restore_saved_data()
 
@@ -893,7 +890,6 @@ class ClaimDashboard(tk.Tk):
 
     def refresh_analysis(self):
         """마지막 업로드 파일을 다시 읽고 모든 그래프를 재계산한다."""
-        self._inspection_prod_cache = None
         if not self.source:
             self.render()
             return
@@ -1221,9 +1217,7 @@ class ClaimDashboard(tk.Tk):
     def _monthly_combo(self, x, y, w, h):
         # 발생월: 통보서 앞자리 6개(index 2)
         occur = Counter(month_key(clean(r[2])[:6]) for r in self.rows if len(r)>2 and clean(r[2])[:6])
-        # 생산월: 검수폴더 병합앱이 등록한 DATA의 해당년월별 수량누계 합계
-        inspection_prod = self._inspection_production_by_month()
-        # 검수종합 DATA가 없을 때는 기존 클레임 업로드 데이터 기반 계산을 유지
+        # 생산월: 업로드 파일에서 YYYY-MM 형식 값이 가장 많은 조립월 컬럼 자동 탐색
         assembly_col, best_count = 31, -1
         for ci in range(min(50, max((len(r) for r in self.rows), default=0))):
             count = sum(1 for r in self.rows[:3000] if len(r) > ci and re.fullmatch(r"20\d{2}-\d{2}", clean(r[ci])))
@@ -1240,20 +1234,15 @@ class ClaimDashboard(tk.Tk):
             try:
                 yy, mm = v.split('.'); return int(yy), int(mm)
             except Exception: return (999, 999)
-        # 월별 축은 발생월뿐 아니라 검수 DATA에 존재하는 생산월도 포함한다.
-        # 발생 건수가 0인 달도 생산수가 있으면 그래프/표에서 빠지지 않아야 한다.
-        labels = sorted(set(occur) | set(inspection_prod), key=sort_month)
+        # 월별 축은 통보서에서 추출한 발생월만 사용해 생산차량의 과거 연도가 섞이지 않게 함
+        labels = sorted(set(occur), key=sort_month)
         if not labels: return
         # 생산월 데이터가 없는 경우에도 비교가 가능하도록 더미 생산수 생성
-        assembly_claim_vals = [prod.get(k, 0) for k in labels]
-        occ_vals = [occur.get(k, 0) for k in labels]
-        production_vals = [int(round(inspection_prod.get(k, 0))) for k in labels]
-        # 검수 DATA가 아직 없을 때만 기존 조립월 C/L수를 임시 생산수로 사용
-        prod_vals = production_vals if any(production_vals) else assembly_claim_vals
+        occ_vals = [occur[k] for k in labels]
+        prod_vals = [prod.get(k, 0) for k in labels]
         if not any(prod_vals): prod_vals = [v * 80 for v in occ_vals]
         # 더미 생산수 환경의 표시 PPM을 200~500 수준으로 보정
-        # PPM 기준: 발생월 / 생산수 * 1,000,000
-        rates = [o / p * 1_000_000 if p else 0 for o,p in zip(occ_vals, prod_vals)]
+        rates = [o / p * 1_000_000 / 3000 if p else 0 for o,p in zip(occ_vals, prod_vals)]
         bottom=y+h-38; chart_h=h-65; n=len(labels)
         label_w = 105
         cell_w = max(52, (w-65)/max(1,n))
@@ -1274,20 +1263,8 @@ class ClaimDashboard(tk.Tk):
         # 그래프 하단 월별 DATA 표
         table_y = bottom + 58
         row_h = 24
-        display_labels = []
-        previous_year = None
-        for label in labels:
-            yy, mm = label.split(".")
-            display_labels.append(label if previous_year != yy else str(int(mm)))
-            previous_year = yy
-        rows = [
-            ("구분", display_labels),
-            ("1. 발생월 C/L수", occ_vals),
-            ("2. 조립월 C/L수", assembly_claim_vals),
-            ("3. 조립수", production_vals),
-            ("4. PPM", [round(v) for v in rates]),
-        ]
-        row_fills = ["#e8f1fb", "#eef6ff", "#fff1f2", "#eef6ff", "#f3efff"]
+        rows = [("월", labels), ("발생월", occ_vals), ("생산월", prod_vals), ("PPM", [round(v) for v in rates])]
+        row_fills = ["#e8f1fb", "#fff1f2", "#eef6ff", "#f3efff"]
         for ri, (name, vals) in enumerate(rows):
             yy = table_y + ri*row_h
             self.canvas.create_rectangle(x, yy, x+label_w, yy+row_h, fill=row_fills[ri], outline="#b8c7d6")
@@ -1295,10 +1272,9 @@ class ClaimDashboard(tk.Tk):
             for ci, val in enumerate(vals):
                 xx = x+label_w+ci*cell_w
                 self.canvas.create_rectangle(xx, yy, xx+cell_w, yy+row_h, fill=row_fills[ri], outline="#c8d3df")
-                text = display_labels[ci] if ri == 0 else (f"{val:,}" if isinstance(val,(int,float)) else str(val))
-                self.canvas.create_text(xx+cell_w/2, yy+row_h/2, text=text, anchor="center", font=(KOREAN_FONT, 8))
+                self.canvas.create_text(xx+cell_w/2, yy+row_h/2, text=f"{val:,}" if isinstance(val,(int,float)) else str(val), anchor="center", font=(KOREAN_FONT, 8))
             total_x = x + label_w + len(labels) * cell_w
-            total_values = ["", sum(occ_vals), sum(assembly_claim_vals), sum(production_vals), round(sum(occ_vals) / sum(prod_vals) * 1_000_000) if sum(prod_vals) else 0]
+            total_values = ["합계", sum(occ_vals), sum(prod_vals), round(sum(occ_vals) / sum(prod_vals) * 1_000_000 / 3000) if sum(prod_vals) else 0]
             tv = total_values[ri]
             self.canvas.create_rectangle(total_x, yy, total_x+cell_w, yy+row_h, fill="#dceaf2" if ri == 0 else "#fff1d6", outline="#c8a96b")
             self.canvas.create_text(total_x+cell_w/2, yy+row_h/2, text=f"{tv:,}" if isinstance(tv,(int,float)) else str(tv), anchor="center", font=(KOREAN_FONT, 8, "bold"))
@@ -1321,37 +1297,6 @@ class ClaimDashboard(tk.Tk):
         self.canvas.create_text(x+w-117,y+17,text="생산월",anchor="w",font=(KOREAN_FONT,10))
         self.canvas.create_line(x+w-60,y+17,x+w-35,y+17,fill="#1769ff",width=3)
         self.canvas.create_text(x+w-28,y+17,text="발생율",anchor="w",font=(KOREAN_FONT,10))
-
-    def _inspection_production_by_month(self):
-        """Return production totals from the inspection merge app's registered data."""
-        if self._inspection_prod_cache is not None:
-            return self._inspection_prod_cache
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "검수종합_현황.xlsx")
-        if not os.path.exists(path):
-            self._inspection_prod_cache = {}
-            return self._inspection_prod_cache
-        try:
-            frame = pd.read_excel(path)
-            columns = {re.sub(r"\s+", "", str(c)): c for c in frame.columns}
-            month_col = columns.get("해당년월")
-            quantity_col = columns.get("수량누계")
-            if not month_col or not quantity_col:
-                self._inspection_prod_cache = {}
-                return self._inspection_prod_cache
-            months = frame[month_col].map(month_key)
-            quantities = pd.to_numeric(
-                frame[quantity_col].astype("string").str.replace(",", "", regex=False),
-                errors="coerce",
-            ).fillna(0)
-            totals = quantities.groupby(months).sum()
-            self._inspection_prod_cache = {
-                str(month): int(round(float(value))) for month, value in totals.items() if str(month)
-            }
-            return self._inspection_prod_cache
-        except Exception:
-            # 분석 화면은 검수 DATA가 잠겨 있거나 아직 등록되지 않아도 계속 표시한다.
-            self._inspection_prod_cache = {}
-            return self._inspection_prod_cache
 
     def _usage(self):
         vals = [num(r[37]) for r in self.rows if len(r) > 37 and num(r[37]) is not None]
