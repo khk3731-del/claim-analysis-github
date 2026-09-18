@@ -4,6 +4,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from collections import Counter, defaultdict
@@ -53,6 +54,17 @@ class ClaimDashboard(tk.Tk):
         self._render_job = None
         self._build_ui()
         self._restore_saved_data()
+        self.after(600, self._preload_customer_assembly)
+
+    def _preload_customer_assembly(self):
+        """Warm common customer assembly caches without blocking the UI thread."""
+        def worker():
+            for company in ("전체", "WIA", "기아", "현대", "HMC"):
+                try:
+                    self._inspection_assembly_by_month(company)
+                except Exception:
+                    pass
+        threading.Thread(target=worker, daemon=True).start()
 
     @property
     def _saved_data_path(self):
