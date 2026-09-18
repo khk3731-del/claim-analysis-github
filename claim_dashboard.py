@@ -913,11 +913,15 @@ class ClaimDashboard(tk.Tk):
 
     def refresh_analysis(self):
         """마지막 업로드 파일을 다시 읽고 모든 그래프를 재계산한다."""
-        if not self.source:
+        # 업로드 직후 원본 파일을 다시 읽으면 Excel 날짜/빈 셀 해석 차이로
+        # 77건이 76건으로 되돌아갈 수 있으므로, 현재 보관 중인 DATA를 유지한다.
+        if not self.all_rows:
             self.render()
             return
         try:
-            self.load(self.source)
+            self.rows = list(self.all_rows)
+            self._fill_tree(self.headers, self.rows[:1000])
+            self._populate_filters()
             self.render()
             self.status.config(text=self.status.cget("text") + " · 분석 새로고침 완료")
         except Exception as e:
