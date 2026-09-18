@@ -54,7 +54,8 @@ class ClaimDashboard(tk.Tk):
         self._render_job = None
         self._build_ui()
         self._restore_saved_data()
-        self.after(600, self._preload_customer_assembly)
+        # 초기 화면을 막지 않고 집계 캐시를 즉시 백그라운드에서 준비한다.
+        self.after(0, self._preload_customer_assembly)
 
     def _preload_customer_assembly(self):
         """Warm common customer assembly caches without blocking the UI thread."""
