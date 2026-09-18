@@ -1287,8 +1287,13 @@ class ClaimDashboard(tk.Tk):
         if not any(prod_vals): prod_vals = [v * 80 for v in occ_vals]
         # 더미 생산수 환경의 표시 PPM을 200~500 수준으로 보정
         # 모든 콤보박스가 전체일 때 검수폴더 병합 DATA의 수량누계를 사용한다.
+        wia_kappa_rule = (
+            self.company_var.get() == "WIA"
+            and "카파" in self.model_var.get()
+            and self.name_var.get() == "전체"
+        )
         assembly_filters_supported = (
-            self.model_var.get() == "전체"
+            (self.model_var.get() == "전체" or wia_kappa_rule)
             and self.name_var.get() == "전체"
             and self.market_var.get() == "전체"
             and self.part_var.get() == "전체"
@@ -1364,7 +1369,7 @@ class ClaimDashboard(tk.Tk):
 
     def _inspection_assembly_by_month(self, selected_company="전체"):
         """Read official assembly counts from inspection merge output."""
-        cache_key = selected_company or "전체"
+        cache_key = f"{selected_company or '전체'}|{self.model_var.get()}|{self.name_var.get()}"
         if not isinstance(self._inspection_assembly_cache, dict):
             self._inspection_assembly_cache = {}
         if cache_key in self._inspection_assembly_cache:
