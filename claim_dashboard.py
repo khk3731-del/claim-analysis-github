@@ -1122,7 +1122,7 @@ class ClaimDashboard(tk.Tk):
             self.part_var.set("전체")
         self.status.config(text=f"{len(self.rows):,}건 분석 중 · 고객사: {company} · 차종: {model} · 품명: {name_text} · 품번: {part_text} · 구분: {market}")
         self._fill_tree([], []) if False else None
-        self.render()
+        self._schedule_render()
 
     def _fill_tree(self, headers, rows):
         self.tree.delete(*self.tree.get_children())
