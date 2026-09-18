@@ -1226,7 +1226,9 @@ class ClaimDashboard(tk.Tk):
             if len(r) <= 2: continue
             occurrence_month = month_key(clean(r[2])[:6])
             assembly_month = month_key(r[assembly_col]) if len(r) > assembly_col and re.fullmatch(r"20\d{2}-\d{2}", clean(r[assembly_col])) else ""
-            prod[assembly_month if assembly_month in occur else occurrence_month] += 1
+            # AG열에 생산월이 있으면 해당 생산월 그대로 집계한다.
+            # 생산월이 비어 있을 때만 발생월을 보완값으로 사용한다.
+            prod[assembly_month or occurrence_month] += 1
         def sort_month(v):
             try:
                 yy, mm = v.split('.'); return int(yy), int(mm)
