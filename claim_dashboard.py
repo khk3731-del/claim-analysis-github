@@ -1362,6 +1362,9 @@ if __name__ == "__main__":
     app = ClaimDashboard()
     default = r"D:\Desktop\월별 클레임 아이템 증감비교\21년~26년 클레임 DATA(260824).xlsx"
     if os.path.exists(default):
-        try: app.load(default); app.render()
+        # 저장된 업로드 DATA가 있으면 실행 때마다 기본 원본으로 덮어쓰지 않는다.
+        try:
+            if not app.all_rows:
+                app.load(default); app.render()
         except Exception: pass
     app.mainloop()
