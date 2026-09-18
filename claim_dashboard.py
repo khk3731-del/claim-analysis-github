@@ -1348,16 +1348,17 @@ class ClaimDashboard(tk.Tk):
             # 화면에서 숨긴 21년 이전 월도 전체 발생월 합계에는 포함한다.
             total_occurrence = sum(occur.values())
             total_production = sum(prod.values())
-            total_assembly = sum(official_assembly.values()) if official_assembly else sum(assembly_vals)
+            total_assembly = int(round(sum(official_assembly.values()))) if official_assembly else sum(assembly_vals)
             # 표의 행 순서: 생산월 → 발생월 → PPM
             total_values = ["합계", total_production, total_occurrence, total_assembly, round(total_production / total_assembly * 1_000_000) if total_assembly else 0]
             tv = total_values[ri]
-            self.canvas.create_rectangle(total_x, yy, total_x+cell_w, yy+row_h, fill="#dceaf2" if ri == 0 else "#fff1d6", outline="#c8a96b")
-            self.canvas.create_text(total_x+cell_w/2, yy+row_h/2, text=f"{tv:,}" if isinstance(tv,(int,float)) else str(tv), anchor="center", font=(KOREAN_FONT, 8, "bold"))
+            total_w = max(cell_w, 112)
+            self.canvas.create_rectangle(total_x, yy, total_x+total_w, yy+row_h, fill="#dceaf2" if ri == 0 else "#fff1d6", outline="#c8a96b")
+            self.canvas.create_text(total_x+total_w/2, yy+row_h/2, text=f"{int(tv):,}" if ri == 3 and isinstance(tv, (int, float)) else (f"{tv:,}" if isinstance(tv,(int,float)) else str(tv)), anchor="center", font=(KOREAN_FONT, 8, "bold"))
         # 실제 마지막 합계 셀 끝까지 스크롤 가능하도록 작업영역 확장
         self.top_canvas.configure(scrollregion=(0, 0, total_x + cell_w + 30, self.top_canvas.winfo_reqheight() or 430))
         # 표 전체 외곽 테두리: 마지막 합계 열까지 연결
-        table_right = total_x + cell_w
+        table_right = total_x + max(cell_w, 112)
         table_bottom = table_y + len(rows) * row_h
         # 그래프 테두리도 최종 월/합계 열의 실제 끝까지 연장
         self.canvas.create_line(x, y, table_right, y, fill="#555555", width=1)
