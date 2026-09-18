@@ -47,15 +47,43 @@ def find_header_row(path: Path, sheet_name=0, scan_rows: int = 30) -> int:
     return int(best_row)
 
 
+def canonical_column_name(value) -> str:
+    """Make monthly Excel headers comparable despite spaces/newlines or NBSP."""
+    text = str(value).replace("\u00a0", " ").replace("\n", " ").strip()
+    compact = re.sub(r"\s+", "", text)
+    aliases = {
+        "수량누계": "수량누계",
+        "금액누계": "금액누계",
+    }
+    return aliases.get(compact, text)
+
+
+def coalesce_duplicate_columns(frame: pd.DataFrame) -> pd.DataFrame:
+    """Merge columns that only differ by header spacing, preserving all values."""
+    result = pd.DataFrame(index=frame.index)
+    seen = set()
+    for name in frame.columns:
+        if name in seen:
+            continue
+        seen.add(name)
+        matching = frame.loc[:, [column == name for column in frame.columns]]
+        merged = matching.iloc[:, 0]
+        for column_index in range(1, matching.shape[1]):
+            merged = merged.combine_first(matching.iloc[:, column_index])
+        result[name] = merged
+    return result
+
+
 def read_one_file(path: Path) -> pd.DataFrame:
     excel = pd.ExcelFile(path)
     sheet_name = excel.sheet_names[0]
     header_row = find_header_row(path, sheet_name)
     df = pd.read_excel(path, sheet_name=sheet_name, header=header_row)
     df = df.dropna(how="all").copy()
-    df.columns = [str(c).strip() if not str(c).startswith("Unnamed:") else "" for c in df.columns]
+    df.columns = [canonical_column_name(c) if not str(c).startswith("Unnamed:") else "" for c in df.columns]
     df = df.loc[:, [c != "" for c in df.columns]]
     df = df.dropna(axis=1, how="all")
+    df = coalesce_duplicate_columns(df)
     existing_period_col = next((c for c in df.columns if str(c).strip() == "해당년월"), None)
     if existing_period_col:
         # Already consolidated files can be used as input without relying on
