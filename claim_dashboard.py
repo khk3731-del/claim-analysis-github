@@ -1129,7 +1129,7 @@ class ClaimDashboard(tk.Tk):
         self.fixed_table.place_configure(x=15, y=self.top_canvas.winfo_y() + labels_y)
         self.tk.call("raise", str(self.fixed_table))
         fixed_fills = ["#e8f1fb", "#fff1f2", "#eef6ff", "#f3efff"]
-        for i, name in enumerate(("월", "발생월", "생산월", "PPM")):
+        for i, name in enumerate(("월", "생산월", "발생월", "PPM")):
             yy = labels_y + i*24
             self.fixed_table.create_rectangle(0, yy-labels_y, 105, yy-labels_y+24, fill=fixed_fills[i], outline="#c8d3df")
             self.fixed_table.create_text(52, yy-labels_y+12, text=name, anchor="center", font=(TABLE_FONT, 10, "bold"), fill="#20354b")
@@ -1263,7 +1263,7 @@ class ClaimDashboard(tk.Tk):
         # 그래프 하단 월별 DATA 표
         table_y = bottom + 58
         row_h = 24
-        rows = [("월", labels), ("발생월", prod_vals), ("생산월", occ_vals), ("PPM", [round(v) for v in rates])]
+        rows = [("월", labels), ("생산월", prod_vals), ("발생월", occ_vals), ("PPM", [round(v) for v in rates])]
         row_fills = ["#e8f1fb", "#fff1f2", "#eef6ff", "#f3efff"]
         for ri, (name, vals) in enumerate(rows):
             yy = table_y + ri*row_h
