@@ -1386,6 +1386,7 @@ class ClaimDashboard(tk.Tk):
                 return {}
             customer_col = normalized.get("거래처명")
             vehicle_col = normalized.get("차종")
+            name_col = normalized.get("품명")
             totals = Counter()
             for row in row_iter:
                 customer = clean(row[customer_col]) if customer_col is not None and len(row) > customer_col else ""
@@ -1398,6 +1399,12 @@ class ClaimDashboard(tk.Tk):
                     if "현대자동차(주)울산" not in customer or "주물" not in vehicle: continue
                 elif selected_company == "현대" or "현대자동차" in selected_company:
                     if "현대자동차" not in customer: continue
+                # WIA 카파 조건은 품명에 CONVERTER/CATALYTIC이 포함된
+                # 검수 DATA만 조립수 산정에 사용한다.
+                if (selected_company == "WIA" or "현대위아" in selected_company) and "카파" in self.model_var.get():
+                    part_name = clean(row[name_col]) if name_col is not None and len(row) > name_col else ""
+                    if "CONVERTER" not in part_name.upper() and "CATALYTIC" not in part_name.upper():
+                        continue
                 if len(row) <= max(month_col, quantity_col): continue
                 month = month_key(row[month_col])
                 if not month: continue
