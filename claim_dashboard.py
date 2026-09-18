@@ -1288,13 +1288,13 @@ class ClaimDashboard(tk.Tk):
                 yy, mm = v.split('.'); return int(yy), int(mm)
             except Exception: return (999, 999)
         # 월별 축은 통보서에서 추출한 발생월만 사용해 생산차량의 과거 연도가 섞이지 않게 함
-        # 조립수만 있고 클레임이 없는 월도 표/그래프에서 유지한다.
-        visible_months = (set(occur) | set(prod))
+        # 조립수만 있거나 클레임만 있는 월도 표/그래프에서 유지한다.
+        visible_months = set(occur) | set(prod)
         labels = sorted(
             (label for label in visible_months if sort_month(label) >= (21, 1)),
             key=sort_month,
         )
-        if not labels: return
+        # 공식 검수 DATA를 읽은 뒤 조립수 전용 월까지 월 축에 추가한다.
         # 생산월 데이터가 없는 경우에도 비교가 가능하도록 더미 생산수 생성
         occ_vals = [occur.get(k, 0) for k in labels]
         prod_vals = [prod.get(k, 0) for k in labels]
@@ -1318,6 +1318,12 @@ class ClaimDashboard(tk.Tk):
         )
         selected_company = self.company_var.get()
         official_assembly = self._inspection_assembly_by_month(selected_company) if assembly_filters_supported else {}
+        visible_months |= set(official_assembly)
+        labels = sorted((label for label in visible_months if sort_month(label) >= (21, 1)), key=sort_month)
+        if not labels:
+            return
+        occ_vals = [occur.get(k, 0) for k in labels]
+        prod_vals = [prod.get(k, 0) for k in labels]
         # 공식 검수 DATA가 없으면 임의의 더미값을 만들지 않고 0으로 표시한다.
         assembly_vals = [int(round(official_assembly.get(label, 0))) for label in labels]
         rates = [p / a * 1_000_000 if a else 0 for p, a in zip(prod_vals, assembly_vals)]
@@ -1435,7 +1441,7 @@ class ClaimDashboard(tk.Tk):
                         continue
                 if (selected_company == "WIA" or "현대위아" in selected_company) and "KA4" in self.model_var.get().upper() and "MUFFLER ASSY-FR" in self.name_var.get().upper():
                     part_name = clean(row[name_col]) if name_col is not None and len(row) > name_col else ""
-                    if "FRT" not in part_name.upper():
+                    if "FRT" not in part_name.upper() or "MUFFLER" not in part_name.upper():
                         continue
                 if len(row) <= max(month_col, quantity_col): continue
                 month = month_key(row[month_col])
