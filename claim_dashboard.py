@@ -1306,7 +1306,6 @@ class ClaimDashboard(tk.Tk):
         assembly_filters_supported = (
             (self.model_var.get() == "전체" or wia_kappa_rule)
             and self.name_var.get() == "전체"
-            and self.market_var.get() == "전체"
             and self.part_var.get() == "전체"
         )
         selected_company = self.company_var.get()
@@ -1377,7 +1376,7 @@ class ClaimDashboard(tk.Tk):
 
     def _inspection_assembly_by_month(self, selected_company="전체"):
         """Read official assembly counts from inspection merge output."""
-        cache_key = f"{selected_company or '전체'}|{self.model_var.get()}|{self.name_var.get()}"
+        cache_key = f"{selected_company or '전체'}|{self.model_var.get()}|{self.name_var.get()}|{self.market_var.get()}"
         if not isinstance(self._inspection_assembly_cache, dict):
             self._inspection_assembly_cache = {}
         if cache_key in self._inspection_assembly_cache:
@@ -1401,6 +1400,7 @@ class ClaimDashboard(tk.Tk):
             customer_col = normalized.get("거래처명", 1)
             vehicle_col = normalized.get("차종", 12)
             name_col = normalized.get("품명", 4)
+            de_col = normalized.get("D/E", 5)
             totals = Counter()
             for row in row_iter:
                 customer = clean(row[customer_col]) if customer_col is not None and len(row) > customer_col else ""
@@ -1413,6 +1413,10 @@ class ClaimDashboard(tk.Tk):
                     if "현대자동차(주)울산" not in customer or "주물" not in vehicle: continue
                 elif selected_company == "현대" or "현대자동차" in selected_company:
                     if "현대자동차" not in customer: continue
+                if self.market_var.get() != "전체":
+                    de_value = clean(row[de_col]) if de_col is not None and len(row) > de_col else ""
+                    if de_value != self.market_var.get():
+                        continue
                 # WIA 카파 조건은 품명에 CONVERTER/CATALYTIC/MANIFOLD MODULE/카파가 포함된
                 # 검수 DATA만 조립수 산정에 사용한다.
                 if (selected_company == "WIA" or "현대위아" in selected_company) and "카파" in self.model_var.get():
