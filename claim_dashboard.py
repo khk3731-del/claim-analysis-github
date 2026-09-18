@@ -14,6 +14,7 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
 from claim_engine import ClaimDataEngine
+from dashboard_view import DashboardView
 
 
 KOREAN_FONT = "Malgun Gothic"
@@ -120,6 +121,10 @@ class ClaimDashboard(tk.Tk):
             self.status.config(text=f"저장 데이터 복원 실패: {exc}")
 
     def _build_ui(self):
+        """Create the replacement dashboard shell; calculations remain on ClaimDashboard."""
+        DashboardView(self).build()
+
+    def _build_legacy_ui(self):
         self.option_add("*Font", (KOREAN_FONT, 10))
         style = ttk.Style(self)
         try: style.theme_use("clam")
