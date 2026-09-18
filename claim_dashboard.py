@@ -1404,11 +1404,12 @@ class ClaimDashboard(tk.Tk):
                     if "현대자동차(주)울산" not in customer or "주물" not in vehicle: continue
                 elif selected_company == "현대" or "현대자동차" in selected_company:
                     if "현대자동차" not in customer: continue
-                # WIA 카파 조건은 품명에 CONVERTER/CATALYTIC이 포함된
+                # WIA 카파 조건은 품명에 CONVERTER/CATALYTIC/MANIFOLD MODULE이 포함된
                 # 검수 DATA만 조립수 산정에 사용한다.
                 if (selected_company == "WIA" or "현대위아" in selected_company) and "카파" in self.model_var.get():
                     part_name = clean(row[name_col]) if name_col is not None and len(row) > name_col else ""
-                    if "CONVERTER" not in part_name.upper() and "CATALYTIC" not in part_name.upper():
+                    upper_name = part_name.upper()
+                    if not any(keyword in upper_name for keyword in ("CONVERTER", "CATALYTIC", "MANIFOLD MODULE")):
                         continue
                 if len(row) <= max(month_col, quantity_col): continue
                 month = month_key(row[month_col])
