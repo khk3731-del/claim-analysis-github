@@ -50,6 +50,7 @@ class ClaimDashboard(tk.Tk):
         self.rows = []
         self.all_rows = []
         self.source = ""
+        self._inspection_prod_cache = None
         self._build_ui()
         self._restore_saved_data()
 
@@ -892,6 +893,7 @@ class ClaimDashboard(tk.Tk):
 
     def refresh_analysis(self):
         """마지막 업로드 파일을 다시 읽고 모든 그래프를 재계산한다."""
+        self._inspection_prod_cache = None
         if not self.source:
             self.render()
             return
@@ -1246,7 +1248,8 @@ class ClaimDashboard(tk.Tk):
         prod_vals = [inspection_prod.get(k, prod.get(k, 0)) for k in labels]
         if not any(prod_vals): prod_vals = [v * 80 for v in occ_vals]
         # 더미 생산수 환경의 표시 PPM을 200~500 수준으로 보정
-        rates = [o / p * 1_000_000 / 3000 if p else 0 for o,p in zip(occ_vals, prod_vals)]
+        # PPM 기준: 발생월 / 생산수 * 1,000,000
+        rates = [o / p * 1_000_000 if p else 0 for o,p in zip(occ_vals, prod_vals)]
         bottom=y+h-38; chart_h=h-65; n=len(labels)
         label_w = 105
         cell_w = max(52, (w-65)/max(1,n))
@@ -1278,7 +1281,7 @@ class ClaimDashboard(tk.Tk):
                 self.canvas.create_rectangle(xx, yy, xx+cell_w, yy+row_h, fill=row_fills[ri], outline="#c8d3df")
                 self.canvas.create_text(xx+cell_w/2, yy+row_h/2, text=f"{val:,}" if isinstance(val,(int,float)) else str(val), anchor="center", font=(KOREAN_FONT, 8))
             total_x = x + label_w + len(labels) * cell_w
-            total_values = ["합계", sum(occ_vals), sum(prod_vals), round(sum(occ_vals) / sum(prod_vals) * 1_000_000 / 3000) if sum(prod_vals) else 0]
+            total_values = ["합계", sum(occ_vals), sum(prod_vals), round(sum(occ_vals) / sum(prod_vals) * 1_000_000) if sum(prod_vals) else 0]
             tv = total_values[ri]
             self.canvas.create_rectangle(total_x, yy, total_x+cell_w, yy+row_h, fill="#dceaf2" if ri == 0 else "#fff1d6", outline="#c8a96b")
             self.canvas.create_text(total_x+cell_w/2, yy+row_h/2, text=f"{tv:,}" if isinstance(tv,(int,float)) else str(tv), anchor="center", font=(KOREAN_FONT, 8, "bold"))
@@ -1304,26 +1307,34 @@ class ClaimDashboard(tk.Tk):
 
     def _inspection_production_by_month(self):
         """Return production totals from the inspection merge app's registered data."""
+        if self._inspection_prod_cache is not None:
+            return self._inspection_prod_cache
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "검수종합_현황.xlsx")
         if not os.path.exists(path):
-            return {}
+            self._inspection_prod_cache = {}
+            return self._inspection_prod_cache
         try:
             frame = pd.read_excel(path)
             columns = {re.sub(r"\s+", "", str(c)): c for c in frame.columns}
             month_col = columns.get("해당년월")
             quantity_col = columns.get("수량누계")
             if not month_col or not quantity_col:
-                return {}
+                self._inspection_prod_cache = {}
+                return self._inspection_prod_cache
             months = frame[month_col].map(month_key)
             quantities = pd.to_numeric(
                 frame[quantity_col].astype("string").str.replace(",", "", regex=False),
                 errors="coerce",
             ).fillna(0)
             totals = quantities.groupby(months).sum()
-            return {str(month): float(value) for month, value in totals.items() if str(month)}
+            self._inspection_prod_cache = {
+                str(month): int(round(float(value))) for month, value in totals.items() if str(month)
+            }
+            return self._inspection_prod_cache
         except Exception:
             # 분석 화면은 검수 DATA가 잠겨 있거나 아직 등록되지 않아도 계속 표시한다.
-            return {}
+            self._inspection_prod_cache = {}
+            return self._inspection_prod_cache
 
     def _usage(self):
         vals = [num(r[37]) for r in self.rows if len(r) > 37 and num(r[37]) is not None]
