@@ -50,6 +50,8 @@ class ClaimDashboard(tk.Tk):
         self.rows = []
         self.all_rows = []
         self.source = ""
+        self._inspection_assembly_cache = None
+        self._render_job = None
         self._build_ui()
         self._restore_saved_data()
 
@@ -98,7 +100,7 @@ class ClaimDashboard(tk.Tk):
                 self.kpi_labels[3].config(text=f"{(total / max(total,1) * 1_000_000 / 3000):,.0f}")
             self._fill_tree(headers, rows[:1000])
             self._populate_filters()
-            self.render()
+            self._schedule_render()
         except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
             self.status.config(text=f"저장 데이터 복원 실패: {exc}")
 
@@ -280,7 +282,7 @@ class ClaimDashboard(tk.Tk):
         self.bottom_canvas = tk.Canvas(self.dashboard_tab, background="white", highlightthickness=0)
         self.bottom_canvas.grid(row=1, column=0, sticky="nsew")
         self.canvas = self.bottom_canvas
-        self.bottom_canvas.bind("<Configure>", lambda e: self.render())
+        self.bottom_canvas.bind("<Configure>", lambda e: self._schedule_render())
         self.tree = ttk.Treeview(self.detail_tab, show="headings")
         self.tree.pack(side="left", fill="both", expand=True)
         sb = ttk.Scrollbar(self.detail_tab, orient="vertical", command=self.tree.yview)
@@ -1173,6 +1175,19 @@ class ClaimDashboard(tk.Tk):
         ch = max(120, min(260, h-y-10))
         for i,(title, items, color) in enumerate(charts): self._canvas_chart(15+i*(cw+gap), y, cw, ch, title, items, color)
 
+    def _schedule_render(self):
+        """Coalesce resize events so moving/resizing the window does one redraw."""
+        if self._render_job is not None:
+            try:
+                self.after_cancel(self._render_job)
+            except tk.TclError:
+                pass
+        self._render_job = self.after(80, self._render_scheduled)
+
+    def _render_scheduled(self):
+        self._render_job = None
+        self.render()
+
     def _counter(self, idx):
         c = Counter(clean(r[idx]) for r in self.rows if len(r) > idx and clean(r[idx]))
         return c.most_common(12)
@@ -1351,8 +1366,11 @@ class ClaimDashboard(tk.Tk):
 
     def _inspection_assembly_by_month(self):
         """Read official assembly counts from inspection merge output."""
+        if self._inspection_assembly_cache is not None:
+            return self._inspection_assembly_cache
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "검수종합_현황.xlsx")
         if not os.path.exists(path):
+            self._inspection_assembly_cache = {}
             return {}
         try:
             frame = pd.read_excel(path)
@@ -1360,6 +1378,7 @@ class ClaimDashboard(tk.Tk):
             month_col = normalized.get("해당년월")
             quantity_col = normalized.get("수량누계")
             if not month_col or not quantity_col:
+                self._inspection_assembly_cache = {}
                 return {}
             months = frame[month_col].map(month_key)
             quantities = pd.to_numeric(
@@ -1367,8 +1386,10 @@ class ClaimDashboard(tk.Tk):
                 errors="coerce",
             ).fillna(0)
             totals = quantities.groupby(months).sum()
-            return {str(month): float(value) for month, value in totals.items() if str(month)}
+            self._inspection_assembly_cache = {str(month): float(value) for month, value in totals.items() if str(month)}
+            return self._inspection_assembly_cache
         except Exception:
+            self._inspection_assembly_cache = {}
             return {}
 
     def _usage(self):
