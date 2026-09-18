@@ -1282,10 +1282,10 @@ class ClaimDashboard(tk.Tk):
             previous_year = yy
         rows = [
             ("구분", display_labels),
-            ("1. 조립월 C/L수", assembly_claim_vals),
-            ("2. 발생월 C/L수", occ_vals),
-            ("3. 조립대수", production_vals),
-            ("4. 발생율(PPM)", [round(v) for v in rates]),
+            ("1. 발생월 C/L수", occ_vals),
+            ("2. 조립월 C/L수", assembly_claim_vals),
+            ("3. 조립수", production_vals),
+            ("4. PPM", [round(v) for v in rates]),
         ]
         row_fills = ["#e8f1fb", "#eef6ff", "#fff1f2", "#eef6ff", "#f3efff"]
         for ri, (name, vals) in enumerate(rows):
@@ -1298,7 +1298,7 @@ class ClaimDashboard(tk.Tk):
                 text = display_labels[ci] if ri == 0 else (f"{val:,}" if isinstance(val,(int,float)) else str(val))
                 self.canvas.create_text(xx+cell_w/2, yy+row_h/2, text=text, anchor="center", font=(KOREAN_FONT, 8))
             total_x = x + label_w + len(labels) * cell_w
-            total_values = ["", sum(assembly_claim_vals), sum(occ_vals), sum(production_vals), round(sum(occ_vals) / sum(prod_vals) * 1_000_000) if sum(prod_vals) else 0]
+            total_values = ["", sum(occ_vals), sum(assembly_claim_vals), sum(production_vals), round(sum(occ_vals) / sum(prod_vals) * 1_000_000) if sum(prod_vals) else 0]
             tv = total_values[ri]
             self.canvas.create_rectangle(total_x, yy, total_x+cell_w, yy+row_h, fill="#dceaf2" if ri == 0 else "#fff1d6", outline="#c8a96b")
             self.canvas.create_text(total_x+cell_w/2, yy+row_h/2, text=f"{tv:,}" if isinstance(tv,(int,float)) else str(tv), anchor="center", font=(KOREAN_FONT, 8, "bold"))
