@@ -413,19 +413,29 @@ class ClaimDashboard(tk.Tk):
         if not self.rows:
             messagebox.showwarning("보고서 출력", "먼저 데이터를 업로드해 주세요.")
             return
-        path = filedialog.asksaveasfilename(title="분석 그래프 엑셀 저장", defaultextension=".xlsx", filetypes=[("Excel 파일", "*.xlsx")], initialfile="클레임_분석_보고서.xlsx")
-        if not path:
-            return
+        # 사용자가 별도 저장 위치를 선택하지 않고, 대시보드와 동일한 내용을
+        # 임시 Excel 파일로 만들어 바로 연다.
+        path = os.path.join(tempfile.gettempdir(), "클레임_분석_대시보드_미리보기.xlsx")
         wb = Workbook(); ws = wb.active; ws.title = "분석 대시보드"
         ws["A1"] = "클레임 자동 분석"; ws["A2"] = "1) 월별 발생 현황 · 발생율(PPM)"
         ws["A1"].font = openpyxl.styles.Font(name="Noto Sans KR", size=16, bold=True, color="10243D")
         ws["A2"].font = openpyxl.styles.Font(name="Noto Sans KR", size=12, bold=True, color="10243D")
-        ws.append([]); ws.append(["월", "발생월", "생산월", "발생율(PPM)"])
+        ws.append([]); ws.append(["월", "생산월", "발생월", "PPM"])
         occur = Counter(month_key(clean(r[2])[:6]) for r in self.rows if len(r) > 2 and clean(r[2])[:6])
-        labels = sorted(occur, key=lambda s: (int(s.split('.')[0]), int(s.split('.')[1])))
+        assembly_col = 32  # 업로드 DATA의 Excel AG열
+        prod = Counter()
+        for r in self.rows:
+            if len(r) <= 2:
+                continue
+            occurrence_month = month_key(clean(r[2])[:6])
+            assembly_month = month_key(r[assembly_col]) if len(r) > assembly_col and re.fullmatch(r"20\d{2}-\d{2}", clean(r[assembly_col])) else ""
+            prod[assembly_month or occurrence_month] += 1
+        labels = sorted((s for s in occur if (int(s.split('.')[0]), int(s.split('.')[1])) >= (21, 1)), key=lambda s: (int(s.split('.')[0]), int(s.split('.')[1])))
         for lab in labels:
-            value = occur[lab]
-            ws.append([lab, value, value, round(value / max(value, 1) * 1_000_000 / 3000)])
+            occurrence_count = occur[lab]
+            production_count = prod.get(lab, 0)
+            ppm = round(occurrence_count / production_count * 1_000_000 / 3000) if production_count else 0
+            ws.append([lab, production_count, occurrence_count, ppm])
         chart = BarChart(); chart.title = "1) 월별 발생 현황 · 발생율(PPM)"; chart.y_axis.title = "건수"; chart.x_axis.title = "월"
         chart.add_data(Reference(ws, min_col=2, max_col=3, min_row=4, max_row=ws.max_row), titles_from_data=True)
         chart.set_categories(Reference(ws, min_col=1, min_row=5, max_row=ws.max_row)); chart.height = 8; chart.width = 24
@@ -446,7 +456,10 @@ class ClaimDashboard(tk.Tk):
         ws.sheet_properties.pageSetUpPr.fitToPage = True; ws.page_setup.orientation = "landscape"; ws.page_setup.fitToWidth = 1; ws.page_setup.fitToHeight = 1
         ws.print_area = "A1:Z45"
         wb.save(path)
-        messagebox.showinfo("보고서 출력 완료", f"분석 그래프를 엑셀로 저장했습니다.\n{path}")
+        try:
+            os.startfile(path)
+        except OSError as exc:
+            messagebox.showerror("Excel 열기 오류", f"보고서 미리보기는 생성되었지만 Excel을 열 수 없습니다.\n{exc}")
 
     def show_issue_analysis(self):
         if not self.rows:
