@@ -1296,7 +1296,8 @@ class ClaimDashboard(tk.Tk):
             and self.market_var.get() == "전체"
             and self.part_var.get() == "전체"
         )
-        official_assembly = self._inspection_assembly_by_month() if all_filters else {}
+        selected_company = self.company_var.get()
+        official_assembly = self._inspection_assembly_by_month(selected_company) if all_filters else {}
         assembly_vals = [
             int(round(official_assembly.get(label, 0))) if official_assembly else
             random.Random(f"assembly-count:{label}").randint(300_000, 400_000)
@@ -1364,13 +1365,15 @@ class ClaimDashboard(tk.Tk):
         self.canvas.create_line(x+w-60,y+17,x+w-35,y+17,fill="#1769ff",width=3)
         self.canvas.create_text(x+w-28,y+17,text="발생율",anchor="w",font=(KOREAN_FONT,10))
 
-    def _inspection_assembly_by_month(self):
+    def _inspection_assembly_by_month(self, selected_company="전체"):
         """Read official assembly counts from inspection merge output."""
-        if self._inspection_assembly_cache is not None:
-            return self._inspection_assembly_cache
+        cache_key = selected_company or "전체"
+        if not isinstance(self._inspection_assembly_cache, dict):
+            self._inspection_assembly_cache = {}
+        if cache_key in self._inspection_assembly_cache:
+            return self._inspection_assembly_cache[cache_key]
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "검수종합_현황.xlsx")
         if not os.path.exists(path):
-            self._inspection_assembly_cache = {}
             return {}
         try:
             frame = pd.read_excel(path)
@@ -1378,18 +1381,33 @@ class ClaimDashboard(tk.Tk):
             month_col = normalized.get("해당년월")
             quantity_col = normalized.get("수량누계")
             if not month_col or not quantity_col:
-                self._inspection_assembly_cache = {}
                 return {}
+            customer_col = normalized.get("거래처명")
+            vehicle_col = normalized.get("차종")
+            if selected_company != "전체" and customer_col:
+                customer_text = frame[customer_col].astype("string").fillna("")
+                if selected_company == "WIA":
+                    frame = frame[customer_text.str.contains("현대위아", regex=False)]
+                elif selected_company == "기아":
+                    frame = frame[customer_text.str.contains("기아", regex=False)]
+                elif selected_company == "현대":
+                    frame = frame[customer_text.str.contains("현대자동차", regex=False)]
+                elif selected_company == "HMC":
+                    match = customer_text.str.contains("현대자동차\\(주\\)울산", regex=True)
+                    if vehicle_col:
+                        vehicle_text = frame[vehicle_col].astype("string").fillna("")
+                        match &= vehicle_text.str.contains("주물", regex=False)
+                    frame = frame[match]
             months = frame[month_col].map(month_key)
             quantities = pd.to_numeric(
                 frame[quantity_col].astype("string").str.replace(",", "", regex=False),
                 errors="coerce",
             ).fillna(0)
             totals = quantities.groupby(months).sum()
-            self._inspection_assembly_cache = {str(month): float(value) for month, value in totals.items() if str(month)}
-            return self._inspection_assembly_cache
+            result = {str(month): float(value) for month, value in totals.items() if str(month)}
+            self._inspection_assembly_cache[cache_key] = result
+            return result
         except Exception:
-            self._inspection_assembly_cache = {}
             return {}
 
     def _usage(self):
