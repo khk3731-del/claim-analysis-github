@@ -1245,8 +1245,11 @@ class ClaimDashboard(tk.Tk):
         labels = sorted(set(occur) | set(inspection_prod), key=sort_month)
         if not labels: return
         # 생산월 데이터가 없는 경우에도 비교가 가능하도록 더미 생산수 생성
-        occ_vals = [occur[k] for k in labels]
-        prod_vals = [inspection_prod.get(k, prod.get(k, 0)) for k in labels]
+        assembly_claim_vals = [prod.get(k, 0) for k in labels]
+        occ_vals = [occur.get(k, 0) for k in labels]
+        production_vals = [int(round(inspection_prod.get(k, 0))) for k in labels]
+        # 검수 DATA가 아직 없을 때만 기존 조립월 C/L수를 임시 생산수로 사용
+        prod_vals = production_vals if any(production_vals) else assembly_claim_vals
         if not any(prod_vals): prod_vals = [v * 80 for v in occ_vals]
         # 더미 생산수 환경의 표시 PPM을 200~500 수준으로 보정
         # PPM 기준: 발생월 / 생산수 * 1,000,000
@@ -1271,8 +1274,20 @@ class ClaimDashboard(tk.Tk):
         # 그래프 하단 월별 DATA 표
         table_y = bottom + 58
         row_h = 24
-        rows = [("월", labels), ("발생월", occ_vals), ("생산월", prod_vals), ("PPM", [round(v) for v in rates])]
-        row_fills = ["#e8f1fb", "#fff1f2", "#eef6ff", "#f3efff"]
+        display_labels = []
+        previous_year = None
+        for label in labels:
+            yy, mm = label.split(".")
+            display_labels.append(label if previous_year != yy else str(int(mm)))
+            previous_year = yy
+        rows = [
+            ("구분", display_labels),
+            ("1. 조립월 C/L수", assembly_claim_vals),
+            ("2. 발생월 C/L수", occ_vals),
+            ("3. 조립대수", production_vals),
+            ("4. 발생율(PPM)", [round(v) for v in rates]),
+        ]
+        row_fills = ["#e8f1fb", "#eef6ff", "#fff1f2", "#eef6ff", "#f3efff"]
         for ri, (name, vals) in enumerate(rows):
             yy = table_y + ri*row_h
             self.canvas.create_rectangle(x, yy, x+label_w, yy+row_h, fill=row_fills[ri], outline="#b8c7d6")
@@ -1280,9 +1295,10 @@ class ClaimDashboard(tk.Tk):
             for ci, val in enumerate(vals):
                 xx = x+label_w+ci*cell_w
                 self.canvas.create_rectangle(xx, yy, xx+cell_w, yy+row_h, fill=row_fills[ri], outline="#c8d3df")
-                self.canvas.create_text(xx+cell_w/2, yy+row_h/2, text=f"{val:,}" if isinstance(val,(int,float)) else str(val), anchor="center", font=(KOREAN_FONT, 8))
+                text = display_labels[ci] if ri == 0 else (f"{val:,}" if isinstance(val,(int,float)) else str(val))
+                self.canvas.create_text(xx+cell_w/2, yy+row_h/2, text=text, anchor="center", font=(KOREAN_FONT, 8))
             total_x = x + label_w + len(labels) * cell_w
-            total_values = ["합계", sum(occ_vals), sum(prod_vals), round(sum(occ_vals) / sum(prod_vals) * 1_000_000) if sum(prod_vals) else 0]
+            total_values = ["", sum(assembly_claim_vals), sum(occ_vals), sum(production_vals), round(sum(occ_vals) / sum(prod_vals) * 1_000_000) if sum(prod_vals) else 0]
             tv = total_values[ri]
             self.canvas.create_rectangle(total_x, yy, total_x+cell_w, yy+row_h, fill="#dceaf2" if ri == 0 else "#fff1d6", outline="#c8a96b")
             self.canvas.create_text(total_x+cell_w/2, yy+row_h/2, text=f"{tv:,}" if isinstance(tv,(int,float)) else str(tv), anchor="center", font=(KOREAN_FONT, 8, "bold"))
