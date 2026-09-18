@@ -1373,34 +1373,40 @@ class ClaimDashboard(tk.Tk):
         if not os.path.exists(path):
             return {}
         try:
-            frame = pd.read_excel(path)
-            normalized = {re.sub(r"\s+", "", str(c)): c for c in frame.columns}
+            # 집계에 필요한 열만 스트리밍으로 읽어 pandas 전체 형 변환을 피한다.
+            book = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            sheet = book[book.sheetnames[0]]
+            row_iter = sheet.iter_rows(values_only=True)
+            headers = next(row_iter, ())
+            normalized = {re.sub(r"\s+", "", clean(value)): index for index, value in enumerate(headers)}
             month_col = normalized.get("해당년월")
             quantity_col = normalized.get("수량누계")
-            if not month_col or not quantity_col:
+            if month_col is None or quantity_col is None:
+                book.close()
                 return {}
             customer_col = normalized.get("거래처명")
             vehicle_col = normalized.get("차종")
-            if selected_company != "전체" and customer_col:
-                customer_text = frame[customer_col].astype("string").fillna("")
+            totals = Counter()
+            for row in row_iter:
+                customer = clean(row[customer_col]) if customer_col is not None and len(row) > customer_col else ""
+                vehicle = clean(row[vehicle_col]) if vehicle_col is not None and len(row) > vehicle_col else ""
                 if selected_company == "WIA" or "현대위아" in selected_company:
-                    frame = frame[customer_text.str.contains("현대위아", regex=False)]
+                    if "현대위아" not in customer: continue
                 elif selected_company == "기아" or "기아" in selected_company:
-                    frame = frame[customer_text.str.contains("기아", regex=False)]
+                    if "기아" not in customer: continue
                 elif selected_company == "HMC" or "현대자동차(주)울산" in selected_company:
-                    match = customer_text.str.contains("현대자동차\\(주\\)울산", regex=True)
-                    if vehicle_col:
-                        vehicle_text = frame[vehicle_col].astype("string").fillna("")
-                        match &= vehicle_text.str.contains("주물", regex=False)
-                    frame = frame[match]
+                    if "현대자동차(주)울산" not in customer or "주물" not in vehicle: continue
                 elif selected_company == "현대" or "현대자동차" in selected_company:
-                    frame = frame[customer_text.str.contains("현대자동차", regex=False)]
-            months = frame[month_col].map(month_key)
-            quantities = pd.to_numeric(
-                frame[quantity_col].astype("string").str.replace(",", "", regex=False),
-                errors="coerce",
-            ).fillna(0)
-            totals = quantities.groupby(months).sum()
+                    if "현대자동차" not in customer: continue
+                if len(row) <= max(month_col, quantity_col): continue
+                month = month_key(row[month_col])
+                if not month: continue
+                try:
+                    quantity = float(str(row[quantity_col]).replace(",", "").strip())
+                except (TypeError, ValueError):
+                    quantity = 0
+                totals[month] += quantity
+            book.close()
             result = {str(month): float(value) for month, value in totals.items() if str(month)}
             self._inspection_assembly_cache[cache_key] = result
             return result
