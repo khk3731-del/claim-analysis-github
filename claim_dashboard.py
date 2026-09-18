@@ -1289,15 +1289,14 @@ class ClaimDashboard(tk.Tk):
         if not any(prod_vals): prod_vals = [v * 80 for v in occ_vals]
         # 더미 생산수 환경의 표시 PPM을 200~500 수준으로 보정
         # 모든 콤보박스가 전체일 때 검수폴더 병합 DATA의 수량누계를 사용한다.
-        all_filters = (
-            self.company_var.get() == "전체"
-            and self.model_var.get() == "전체"
+        assembly_filters_supported = (
+            self.model_var.get() == "전체"
             and self.name_var.get() == "전체"
             and self.market_var.get() == "전체"
             and self.part_var.get() == "전체"
         )
         selected_company = self.company_var.get()
-        official_assembly = self._inspection_assembly_by_month(selected_company) if all_filters else {}
+        official_assembly = self._inspection_assembly_by_month(selected_company) if assembly_filters_supported else {}
         assembly_vals = [
             int(round(official_assembly.get(label, 0))) if official_assembly else
             random.Random(f"assembly-count:{label}").randint(300_000, 400_000)
@@ -1386,18 +1385,18 @@ class ClaimDashboard(tk.Tk):
             vehicle_col = normalized.get("차종")
             if selected_company != "전체" and customer_col:
                 customer_text = frame[customer_col].astype("string").fillna("")
-                if selected_company == "WIA":
+                if selected_company == "WIA" or "현대위아" in selected_company:
                     frame = frame[customer_text.str.contains("현대위아", regex=False)]
-                elif selected_company == "기아":
+                elif selected_company == "기아" or "기아" in selected_company:
                     frame = frame[customer_text.str.contains("기아", regex=False)]
-                elif selected_company == "현대":
-                    frame = frame[customer_text.str.contains("현대자동차", regex=False)]
-                elif selected_company == "HMC":
+                elif selected_company == "HMC" or "현대자동차(주)울산" in selected_company:
                     match = customer_text.str.contains("현대자동차\\(주\\)울산", regex=True)
                     if vehicle_col:
                         vehicle_text = frame[vehicle_col].astype("string").fillna("")
                         match &= vehicle_text.str.contains("주물", regex=False)
                     frame = frame[match]
+                elif selected_company == "현대" or "현대자동차" in selected_company:
+                    frame = frame[customer_text.str.contains("현대자동차", regex=False)]
             months = frame[month_col].map(month_key)
             quantities = pd.to_numeric(
                 frame[quantity_col].astype("string").str.replace(",", "", regex=False),
