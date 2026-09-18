@@ -10,6 +10,7 @@ from tkinter import filedialog, messagebox, ttk
 from collections import Counter, defaultdict
 
 import openpyxl
+import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import BarChart, LineChart, Reference
 
@@ -1272,8 +1273,20 @@ class ClaimDashboard(tk.Tk):
         prod_vals = [prod.get(k, 0) for k in labels]
         if not any(prod_vals): prod_vals = [v * 80 for v in occ_vals]
         # 더미 생산수 환경의 표시 PPM을 200~500 수준으로 보정
-        # 조립수는 요청된 범위의 고정 더미 DATA로 표시한다.
-        assembly_vals = [random.Random(f"assembly-count:{label}").randint(300_000, 400_000) for label in labels]
+        # 모든 콤보박스가 전체일 때 검수폴더 병합 DATA의 수량누계를 사용한다.
+        all_filters = (
+            self.company_var.get() == "전체"
+            and self.model_var.get() == "전체"
+            and self.name_var.get() == "전체"
+            and self.market_var.get() == "전체"
+            and self.part_var.get() == "전체"
+        )
+        official_assembly = self._inspection_assembly_by_month() if all_filters else {}
+        assembly_vals = [
+            int(round(official_assembly.get(label, 0))) if official_assembly else
+            random.Random(f"assembly-count:{label}").randint(300_000, 400_000)
+            for label in labels
+        ]
         rates = [p / a * 1_000_000 if a else 0 for p, a in zip(prod_vals, assembly_vals)]
         bottom=y+h-38; chart_h=h-65; n=len(labels)
         label_w = 105
@@ -1310,7 +1323,7 @@ class ClaimDashboard(tk.Tk):
             # 화면에서 숨긴 21년 이전 월도 전체 발생월 합계에는 포함한다.
             total_occurrence = sum(occur.values())
             total_production = sum(prod.values())
-            total_assembly = sum(assembly_vals)
+            total_assembly = sum(official_assembly.values()) if official_assembly else sum(assembly_vals)
             # 표의 행 순서: 생산월 → 발생월 → PPM
             total_values = ["합계", total_production, total_occurrence, total_assembly, round(total_production / total_assembly * 1_000_000) if total_assembly else 0]
             tv = total_values[ri]
@@ -1335,6 +1348,28 @@ class ClaimDashboard(tk.Tk):
         self.canvas.create_text(x+w-117,y+17,text="생산월",anchor="w",font=(KOREAN_FONT,10))
         self.canvas.create_line(x+w-60,y+17,x+w-35,y+17,fill="#1769ff",width=3)
         self.canvas.create_text(x+w-28,y+17,text="발생율",anchor="w",font=(KOREAN_FONT,10))
+
+    def _inspection_assembly_by_month(self):
+        """Read official assembly counts from inspection merge output."""
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "검수종합_현황.xlsx")
+        if not os.path.exists(path):
+            return {}
+        try:
+            frame = pd.read_excel(path)
+            normalized = {re.sub(r"\s+", "", str(c)): c for c in frame.columns}
+            month_col = normalized.get("해당년월")
+            quantity_col = normalized.get("수량누계")
+            if not month_col or not quantity_col:
+                return {}
+            months = frame[month_col].map(month_key)
+            quantities = pd.to_numeric(
+                frame[quantity_col].astype("string").str.replace(",", "", regex=False),
+                errors="coerce",
+            ).fillna(0)
+            totals = quantities.groupby(months).sum()
+            return {str(month): float(value) for month, value in totals.items() if str(month)}
+        except Exception:
+            return {}
 
     def _usage(self):
         vals = [num(r[37]) for r in self.rows if len(r) > 37 and num(r[37]) is not None]
