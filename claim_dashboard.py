@@ -1240,8 +1240,9 @@ class ClaimDashboard(tk.Tk):
             try:
                 yy, mm = v.split('.'); return int(yy), int(mm)
             except Exception: return (999, 999)
-        # 월별 축은 통보서에서 추출한 발생월만 사용해 생산차량의 과거 연도가 섞이지 않게 함
-        labels = sorted(set(occur), key=sort_month)
+        # 월별 축은 발생월뿐 아니라 검수 DATA에 존재하는 생산월도 포함한다.
+        # 발생 건수가 0인 달도 생산수가 있으면 그래프/표에서 빠지지 않아야 한다.
+        labels = sorted(set(occur) | set(inspection_prod), key=sort_month)
         if not labels: return
         # 생산월 데이터가 없는 경우에도 비교가 가능하도록 더미 생산수 생성
         occ_vals = [occur[k] for k in labels]
