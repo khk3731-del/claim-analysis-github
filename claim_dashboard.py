@@ -1,6 +1,5 @@
 import os
 import json
-import random
 import re
 import subprocess
 import sys
@@ -1300,11 +1299,8 @@ class ClaimDashboard(tk.Tk):
         )
         selected_company = self.company_var.get()
         official_assembly = self._inspection_assembly_by_month(selected_company) if assembly_filters_supported else {}
-        assembly_vals = [
-            int(round(official_assembly.get(label, 0))) if official_assembly else
-            random.Random(f"assembly-count:{label}").randint(300_000, 400_000)
-            for label in labels
-        ]
+        # 공식 검수 DATA가 없으면 임의의 더미값을 만들지 않고 0으로 표시한다.
+        assembly_vals = [int(round(official_assembly.get(label, 0))) for label in labels]
         rates = [p / a * 1_000_000 if a else 0 for p, a in zip(prod_vals, assembly_vals)]
         bottom=y+h-38; chart_h=h-65; n=len(labels)
         label_w = 105
@@ -1384,14 +1380,15 @@ class ClaimDashboard(tk.Tk):
             row_iter = sheet.iter_rows(values_only=True)
             headers = next(row_iter, ())
             normalized = {re.sub(r"\s+", "", clean(value)): index for index, value in enumerate(headers)}
-            month_col = normalized.get("해당년월")
-            quantity_col = normalized.get("수량누계")
+            # 병합 파일의 표준 열 위치를 fallback으로 사용해 헤더 표기 변형도 처리한다.
+            month_col = normalized.get("해당년월", 0)
+            quantity_col = normalized.get("수량누계", 8)
             if month_col is None or quantity_col is None:
                 book.close()
                 return {}
-            customer_col = normalized.get("거래처명")
-            vehicle_col = normalized.get("차종")
-            name_col = normalized.get("품명")
+            customer_col = normalized.get("거래처명", 1)
+            vehicle_col = normalized.get("차종", 12)
+            name_col = normalized.get("품명", 4)
             totals = Counter()
             for row in row_iter:
                 customer = clean(row[customer_col]) if customer_col is not None and len(row) > customer_col else ""
