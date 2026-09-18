@@ -1303,9 +1303,14 @@ class ClaimDashboard(tk.Tk):
             and "카파" in self.model_var.get()
             and self.name_var.get() == "전체"
         )
+        wia_ka4_frt_rule = (
+            self.company_var.get() == "WIA"
+            and "KA4" in self.model_var.get().upper()
+            and "MUFFLER ASSY-FR" in self.name_var.get().upper()
+        )
         assembly_filters_supported = (
-            (self.model_var.get() == "전체" or wia_kappa_rule)
-            and self.name_var.get() == "전체"
+            (self.model_var.get() == "전체" or wia_kappa_rule or wia_ka4_frt_rule)
+            and (self.name_var.get() == "전체" or wia_ka4_frt_rule)
             and self.part_var.get() == "전체"
         )
         selected_company = self.company_var.get()
@@ -1424,6 +1429,10 @@ class ClaimDashboard(tk.Tk):
                     part_name = clean(row[name_col]) if name_col is not None and len(row) > name_col else ""
                     upper_name = part_name.upper()
                     if not any(keyword in upper_name for keyword in ("CONVERTER", "CATALYTIC", "MANIFOLD MODULE", "카파")):
+                        continue
+                if (selected_company == "WIA" or "현대위아" in selected_company) and "KA4" in self.model_var.get().upper() and "MUFFLER ASSY-FR" in self.name_var.get().upper():
+                    part_name = clean(row[name_col]) if name_col is not None and len(row) > name_col else ""
+                    if "FRT" not in part_name.upper():
                         continue
                 if len(row) <= max(month_col, quantity_col): continue
                 month = month_key(row[month_col])
