@@ -423,14 +423,26 @@ class ClaimDashboard(tk.Tk):
             tree = ttk.Treeview(table_frame, show="headings", style="Cost.Treeview"); tree.grid(row=0, column=0, sticky="nsew")
             tree.tag_configure("even", background="#F7FAFC")
             tree.tag_configure("odd", background="#FFFFFF")
-            vs = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview); hs = ttk.Scrollbar(table_frame, orient="horizontal", command=tree.xview)
+            vs = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview); hs = ttk.Scrollbar(table_frame, orient="horizontal", command=lambda *args: self._cost_scroll(tree, *args))
             vs.grid(row=0, column=1, sticky="ns")
             hs.grid(row=1, column=0, sticky="ew")
             tree.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
+            tree.bind("<Shift-MouseWheel>", lambda e: (tree.xview_scroll(-max(1, abs(e.delta) // 30), "units"), "break")[-1])
+            tree.bind("<Control-MouseWheel>", lambda e: (tree.xview_scroll(-max(1, abs(e.delta) // 15), "units"), "break")[-1])
             self._cost_widgets = (tree, wb)
             self._update_cost_view()
         except Exception as exc:
             messagebox.showerror("클레임 비용현황 오류", str(exc))
+
+    @staticmethod
+    def _cost_scroll(tree, *args):
+        if args and args[0] == "scroll":
+            try:
+                tree.xview_scroll(int(args[1]) * 6, args[2])
+            except (TypeError, ValueError):
+                tree.xview(*args)
+        else:
+            tree.xview(*args)
 
     def _update_cost_view(self):
         tree, wb = self._cost_widgets
