@@ -825,6 +825,23 @@ class ClaimDashboard(tk.Tk):
                                 source_idx = next((i for i, key in enumerate(source_headers) if key.replace(" ", "").lower() in normalized_sources), None)
                             if target_idx is not None and source_idx is not None and source_idx < len(row):
                                 mapped[target_idx] = row[source_idx]
+                        # 모비스OEM의 원인코드·현상코드는 설명문(원인/현상)으로 변환하지 않고
+                        # 원본 DATA의 코드값을 그대로 사용합니다. 이 대입을 마지막에 수행해
+                        # 앞선 일반 매핑이나 코드-설명 매핑이 값을 덮어쓰지 못하게 합니다.
+                        for code_name in ("원인코드", "현상코드"):
+                            source_code_idx = next(
+                                (i for i, key in enumerate(source_headers)
+                                 if key.replace(" ", "").lower() == code_name),
+                                None,
+                            )
+                            target_code_idx = next(
+                                (i for i, key in enumerate(header_keys)
+                                 if key.replace(" ", "").lower() == code_name),
+                                None,
+                            )
+                            if (source_code_idx is not None and target_code_idx is not None
+                                    and source_code_idx < len(row)):
+                                mapped[target_code_idx] = row[source_code_idx]
                         mobis_ctype_target_idx = next((i for i, key in enumerate(header_keys) if key.replace(" ", "").lower() == "c/type"), None)
                         mobis_ctype_source_idx = next((i for i, key in enumerate(source_headers) if key.replace(" ", "").lower() == "클레임타입"), None)
                         if mobis_ctype_target_idx is not None and mobis_ctype_source_idx is not None and mobis_ctype_source_idx < len(row):
