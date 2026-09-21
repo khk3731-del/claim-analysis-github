@@ -60,11 +60,12 @@ class DashboardView:
         tk.Label(side, text="Claim Analytics", fg="#A9C8E9", bg="#082B52", font=("Segoe UI", 10)).pack(anchor="w", padx=20, pady=(2, 24))
         st = ttk.Style(a); st.configure("ModernSidebar.Treeview", background="#082B52", fieldbackground="#082B52", foreground="white", rowheight=36, borderwidth=0, font=("Malgun Gothic", 11)); st.map("ModernSidebar.Treeview", background=[("selected", "#1677E8")])
         menu = ttk.Treeview(side, show="tree", selectmode="browse", style="ModernSidebar.Treeview", height=6); menu.pack(fill="x", padx=10)
-        root = menu.insert("", "end", text="클레임 분석", image=graph_icon, iid="dashboard", open=True)
+        menu.tag_configure("section_header", background="#1769D4", foreground="white")
+        root = menu.insert("", "end", text="클레임 분석", image=graph_icon, iid="dashboard", open=True, tags=("section_header",))
         menu.insert(root, "end", text="   1. 현상별 분석", iid="issue"); menu.insert(root, "end", text="   2. 국가별 분석", iid="country"); menu.insert(root, "end", text="   3. 보고서 출력", iid="report")
         menu.selection_set(root); menu.bind("<<TreeviewSelect>>", a._on_sidebar_select); a.sidebar_menu = menu
         for title, iid, callback, icon in (("고객사별 DATA 저장", "customer_root", a._on_customer_menu_select, database_icon), ("검수폴더 병합", "merge_root", a._on_merge_menu_select, database_icon)):
-            t = ttk.Treeview(side, show="tree", selectmode="browse", style="ModernSidebar.Treeview", height=2); t.pack(fill="x", padx=10, pady=(18, 0)); r = t.insert("", "end", text=title, image=icon, iid=iid, open=True); child = "customer_upload" if iid == "customer_root" else "merge_app"; label = "   DATA 업로드" if iid == "customer_root" else "   검수폴더 병합앱"; t.insert(r, "end", text=label, iid=child); t.bind("<<TreeviewSelect>>", callback)
+            t = ttk.Treeview(side, show="tree", selectmode="browse", style="ModernSidebar.Treeview", height=2); t.pack(fill="x", padx=10, pady=(18, 0)); t.tag_configure("section_header", background="#1769D4", foreground="white"); r = t.insert("", "end", text=title, image=icon, iid=iid, open=True, tags=("section_header",)); child = "customer_upload" if iid == "customer_root" else "merge_app"; label = "   DATA 업로드" if iid == "customer_root" else "   검수폴더 병합앱"; t.insert(r, "end", text=label, iid=child); t.bind("<<TreeviewSelect>>", callback)
             if iid == "customer_root": a.customer_menu = t
             else: a.merge_menu = t
         tk.Label(side, text="품질로 더 나은 내일을 만듭니다.\n\nBetter Quality\nA Brighter Tomorrow", fg="#B8D1E8", bg="#082B52", justify="left", anchor="w", font=("Malgun Gothic", 9)).pack(side="bottom", fill="x", padx=20, pady=22)
