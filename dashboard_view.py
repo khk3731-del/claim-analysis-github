@@ -92,15 +92,24 @@ class DashboardView:
             ("◈", "발생률(PPM)", "#F97316", "free-icon-percent-3097292.png"),
         )
         for fallback_icon, title, color, filename in kpi_specs:
-            card=tk.Frame(a.kpi_frame,bg="white",highlightbackground="#D7E6F5",highlightthickness=1,padx=12,pady=10);card.pack(side="left",fill="x",expand=True,padx=6)
+            card_shell=tk.Frame(a.kpi_frame,bg="#D7E2EF",bd=0);card_shell.pack(side="left",fill="x",expand=True,padx=6,pady=(0,3))
+            card=tk.Canvas(card_shell,bg="#D7E2EF",highlightthickness=0,height=82,bd=0);card.pack(fill="both",expand=True)
+            def rounded(canvas, width, height):
+                radius=12; canvas.delete("panel")
+                canvas.create_rectangle(2+radius, 3, width-2-radius, height-2, fill="white", outline="white", tags="panel")
+                canvas.create_rectangle(2, 3+radius, width-2, height-2-radius, fill="white", outline="white", tags="panel")
+                for cx,cy,start in ((2+radius,3+radius,90),(width-2-radius,3+radius,0),(width-2-radius,height-2-radius,270),(2+radius,height-2-radius,180)):
+                    canvas.create_arc(cx-radius,cy-radius,cx+radius,cy+radius,start=start,extent=90,fill="white",outline="white",tags="panel")
+            card.update_idletasks(); rounded(card, max(card.winfo_reqwidth(), 300), 82)
+            inner=tk.Frame(card,bg="white",bd=0); card.create_window((14,10),window=inner,anchor="nw")
             raw_icon = a._load_image(filename)
             card_icon = raw_icon.subsample(max(1, raw_icon.width() // 48), max(1, raw_icon.height() // 48)) if raw_icon else None
             if card_icon:
                 a.image_refs.append(card_icon)
-                tk.Label(card, image=card_icon, bg="white").pack(side="left",padx=(0,12))
+                tk.Label(inner, image=card_icon, bg="white").pack(side="left",padx=(0,12))
             else:
-                tk.Label(card,text=fallback_icon,bg=color,fg="white",font=("Malgun Gothic",22,"bold"),width=2).pack(side="left",padx=(0,12))
-            box=tk.Frame(card,bg="white");box.pack(side="left");tk.Label(box,text=title,bg="white",fg="#58718E",font=("Malgun Gothic",9)).pack(anchor="w");v=tk.Label(box,text="-",bg="white",fg="#102A4C",font=("Malgun Gothic",21,"bold"));v.pack(anchor="w");a.kpi_labels.append(v)
+                tk.Label(inner,text=fallback_icon,bg=color,fg="white",font=("Malgun Gothic",22,"bold"),width=2).pack(side="left",padx=(0,12))
+            box=tk.Frame(inner,bg="white");box.pack(side="left");tk.Label(box,text=title,bg="white",fg="#58718E",font=("Malgun Gothic",9)).pack(anchor="w");v=tk.Label(box,text="-",bg="white",fg="#102A4C",font=("Malgun Gothic",21,"bold"));v.pack(anchor="w");a.kpi_labels.append(v)
         a.notebook=ttk.Notebook(content);a.notebook.pack(fill="both",expand=True,padx=18,pady=(4,18));a.dashboard_tab=ttk.Frame(a.notebook);a.detail_tab=ttk.Frame(a.notebook);a.notebook.add(a.dashboard_tab,text="분석 대시보드");a.notebook.add(a.detail_tab,text="원본 데이터")
         a.dashboard_tab.rowconfigure(1,weight=1);a.dashboard_tab.columnconfigure(0,weight=1);a.top_frame=tk.Frame(a.dashboard_tab,bg="white",highlightbackground="#D7E6F5",highlightthickness=1);a.top_frame.grid(row=0,column=0,sticky="ew");a.top_title_frame=tk.Frame(a.top_frame,bg="white");a.top_title_frame.pack(anchor="w",padx=18,pady=(12,4));title_icon=a._load_image("free-icon-data-analytics-8909435.png");title_icon_small=title_icon.subsample(max(1,title_icon.width()//34),max(1,title_icon.height()//34)) if title_icon else None
         if title_icon_small: a.image_refs.append(title_icon_small); tk.Label(a.top_title_frame,image=title_icon_small,bg="white").pack(side="left",padx=(0,8))
