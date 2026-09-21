@@ -82,7 +82,6 @@ class DashboardView:
     def _content(self, content):
         a = self.app
         top = tk.Frame(content, bg="#FFFFFF", padx=16, pady=14, highlightbackground="#D7E6F5", highlightthickness=1); top.pack(fill="x", padx=18, pady=(18, 8))
-        ttk.Button(top, text="원본 DATA 업로드", command=a.open_file, style="Modern.TButton").pack(side="left", padx=(0, 12))
         tk.Label(top, text="데이터 원본", bg="white", fg="#102A4C", font=("Malgun Gothic", 9, "bold")).pack(side="left")
         a.file_label = ttk.Label(top, text="파일을 선택하세요", style="Modern.TLabel", padding=(10, 0)); a.file_label.pack(side="left", padx=(8, 20))
         self._combo(top, "고객사", "company_var", "company_combo", 12, a.company_changed)
