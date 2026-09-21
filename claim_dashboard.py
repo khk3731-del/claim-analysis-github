@@ -304,11 +304,18 @@ class ClaimDashboard(tk.Tk):
         self.canvas = self.bottom_canvas
         self.bottom_canvas.bind("<Configure>", lambda e: self._schedule_render())
         self.bottom_canvas.bind("<Button-1>", self._on_chart_detail_click)
-        self.tree = ttk.Treeview(self.detail_tab, show="headings")
-        self.tree.pack(side="left", fill="both", expand=True)
-        sb = ttk.Scrollbar(self.detail_tab, orient="vertical", command=self.tree.yview)
-        sb.pack(side="right", fill="y")
-        self.tree.configure(yscrollcommand=sb.set)
+        # 원본 DATA는 열 수가 많으므로 표 전용 프레임에 가로·세로 스크롤을 모두 둡니다.
+        detail_frame = ttk.Frame(self.detail_tab)
+        detail_frame.pack(fill="both", expand=True)
+        self.tree = ttk.Treeview(detail_frame, show="headings")
+        self.tree.grid(row=0, column=0, sticky="nsew")
+        detail_frame.rowconfigure(0, weight=1)
+        detail_frame.columnconfigure(0, weight=1)
+        vertical_sb = ttk.Scrollbar(detail_frame, orient="vertical", command=self.tree.yview)
+        horizontal_sb = ttk.Scrollbar(detail_frame, orient="horizontal", command=self.tree.xview)
+        vertical_sb.grid(row=0, column=1, sticky="ns")
+        horizontal_sb.grid(row=1, column=0, sticky="ew")
+        self.tree.configure(yscrollcommand=vertical_sb.set, xscrollcommand=horizontal_sb.set)
 
     def _on_sidebar_select(self, _event=None):
         selected = self.sidebar_menu.selection()
@@ -1227,7 +1234,12 @@ class ClaimDashboard(tk.Tk):
         for i, h in enumerate(headers):
             name = clean(h) or f"열{i+1}"
             self.tree.heading(f"c{i}", text=name)
-            self.tree.column(f"c{i}", width=110, anchor="center")
+            # 헤더와 실제 값 중 긴 쪽에 맞춰 표시 폭을 확보하되, 긴 텍스트가
+            # 화면 전체를 독점하지 않도록 제한합니다. 전체 열은 가로 스크롤로 확인합니다.
+            sample_lengths = [len(clean(row[i])) for row in rows[:100] if len(row) > i and clean(row[i])]
+            content_width = max([len(name)] + sample_lengths + [8])
+            column_width = min(240, max(82, content_width * 9 + 18))
+            self.tree.column(f"c{i}", width=column_width, minwidth=60, anchor="center", stretch=False)
         for row in rows:
             vals = [(clean(v)[:80]) for v in row]
             vals += [""] * (len(headers) - len(vals))
