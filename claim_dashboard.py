@@ -525,7 +525,7 @@ class ClaimDashboard(tk.Tk):
                 if matching_months >= max(3, len(month_headers) // 2):
                     continue
                 item = next((v for v in raw[:5] if v), "")
-                if len(raw) > 1 and raw[1] and ("KMC" in raw[1].upper() or "HMC" in raw[1].upper() or "WIA" in raw[1].upper() or "HMB" in raw[1].upper() or "MOBIS" in raw[1].upper()):
+                if len(raw) > 1 and raw[1] and (len(raw) > 2 and raw[2] or "KMC" in raw[1].upper() or "HMC" in raw[1].upper() or "WIA" in raw[1].upper() or "HMB" in raw[1].upper() or "MOBIS" in raw[1].upper()):
                     current_group = raw[1]
                 group = current_group
                 label = raw[2] if len(raw) > 2 else item
