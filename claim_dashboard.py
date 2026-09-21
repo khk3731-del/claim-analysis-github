@@ -842,17 +842,13 @@ class ClaimDashboard(tk.Tk):
                             if (source_code_idx is not None and target_code_idx is not None
                                     and source_code_idx < len(row)):
                                 mapped[target_code_idx] = row[source_code_idx]
-                        # 모비스OEM 원본의 실제 기준 열은 AH=원인코드, AI=현상코드입니다.
-                        # 파일별 헤더 인코딩/공백 차이로 이름 검색이 실패해도 이 위치의
-                        # 원본 코드를 놓치지 않도록 고정 열을 최우선으로 적용합니다.
-                        mobis_code_columns = (("원인코드", 33), ("현상코드", 34))
-                        for code_name, source_code_idx in mobis_code_columns:
-                            target_code_idx = next(
-                                (i for i, key in enumerate(header_keys)
-                                 if key.replace(" ", "").lower() == code_name),
-                                None,
-                            )
-                            if (target_code_idx is not None and source_code_idx < len(row)
+                        # 모비스OEM 원본의 실제 기준 열은 AT=원인코드, AU=현상코드이며,
+                        # 통합 결과의 좌측 AH·AI(원인코드·현상코드)로 옮깁니다.
+                        # 원본 열의 설명문/헤더명과 무관하게 사용자가 지정한 열 위치를
+                        # 최우선으로 적용해 다른 매핑이 값을 덮어쓰지 않게 합니다.
+                        mobis_code_columns = ((33, 45), (34, 46))  # AH<-AT, AI<-AU
+                        for target_code_idx, source_code_idx in mobis_code_columns:
+                            if (target_code_idx < len(mapped) and source_code_idx < len(row)
                                     and row[source_code_idx] not in (None, "")):
                                 mapped[target_code_idx] = row[source_code_idx]
                         mobis_ctype_target_idx = next((i for i, key in enumerate(header_keys) if key.replace(" ", "").lower() == "c/type"), None)
