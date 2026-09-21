@@ -1374,7 +1374,8 @@ class ClaimDashboard(tk.Tk):
         prod_vals = [prod.get(k, 0) for k in labels]
         # 공식 검수 DATA가 없으면 임의의 더미값을 만들지 않고 0으로 표시한다.
         assembly_vals = [int(round(official_assembly.get(label, 0))) for label in labels]
-        rates = [p / a * 1_000_000 if a else 0 for p, a in zip(prod_vals, assembly_vals)]
+        # PPM은 발생건수(발생월) / 검수 조립수 기준으로 대시보드·보고서·KPI를 통일한다.
+        rates = [o / a * 1_000_000 if a else 0 for o, a in zip(occ_vals, assembly_vals)]
         bottom=y+h-38; chart_h=h-65; n=len(labels)
         label_w = 105
         cell_w = max(52, (w-65)/max(1,n))
@@ -1416,7 +1417,7 @@ class ClaimDashboard(tk.Tk):
             total_production = sum(prod.values())
             total_assembly = int(round(sum(official_assembly.values()))) if official_assembly else sum(assembly_vals)
             # 표의 행 순서: 생산월 → 발생월 → PPM
-            total_values = ["합계", total_production, total_occurrence, total_assembly, round(total_production / total_assembly * 1_000_000) if total_assembly else 0]
+            total_values = ["합계", total_production, total_occurrence, total_assembly, round(total_occurrence / total_assembly * 1_000_000) if total_assembly else 0]
             tv = total_values[ri]
             total_w = max(cell_w, 112)
             self.canvas.create_rectangle(total_x, yy, total_x+total_w, yy+row_h, fill="#dceaf2" if ri == 0 else "#ffffff", outline="#c8d3df")
