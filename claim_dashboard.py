@@ -523,6 +523,17 @@ class ClaimDashboard(tk.Tk):
         if not month_headers:
             month_headers = [f"열{i}" for i in range(5, max_columns + 1)]
             month_positions = list(range(4, max_columns))
+        # 청색 헤더만 있고 아래 DATA가 전혀 없는 열은 표시하지 않습니다.
+        active_positions = []
+        for position in month_positions:
+            if any(
+                any(position < len(row) and row[position] not in (None, "") for row in ws.iter_rows(min_row=3, values_only=True))
+                for ws in worksheets
+            ):
+                active_positions.append(position)
+        if active_positions:
+            month_headers = [header for header, position in zip(month_headers, month_positions) if position in active_positions]
+            month_positions = active_positions
         headers = ["구분", "항목"] + month_headers
         output_rows = []
         current_group = ""
