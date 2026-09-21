@@ -390,9 +390,16 @@ class ClaimDashboard(tk.Tk):
         rows = []
         for name in sheets:
             ws = wb[name]
-            for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 80), values_only=True):
+            current_customer = ""
+            for row in ws.iter_rows(min_row=1, max_row=ws.max_row, values_only=True):
                 vals = list(row)
-                if any(isinstance(v, str) and ("실발생금액" in v or "변제금액" in v or "실변제금액" in v) for v in vals[:4]): rows.append((name, vals))
+                row_text = " ".join(clean(v).upper() for v in vals[:12] if v is not None)
+                for customer in ("HMC", "KIA", "WIA", "HMB", "MOBIS", "GLOVIS"):
+                    if customer in row_text:
+                        current_customer = customer
+                is_cost_row = any(isinstance(v, str) and ("실발생금액" in v or "변제금액" in v or "실변제금액" in v) for v in vals[:4])
+                if is_cost_row and (choices == ["전체"] or current_customer in choices or not current_customer):
+                    rows.append((current_customer or name, vals))
         if not rows:
             messagebox.showwarning("클레임 비용현황", "선택한 고객사의 비용 요약 블록을 찾지 못했습니다.")
             return
