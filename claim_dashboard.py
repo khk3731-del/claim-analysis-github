@@ -1129,7 +1129,10 @@ class ClaimDashboard(tk.Tk):
         total_claims = len(getattr(self, "all_rows", []))
         filtered_rows = getattr(self, "rows", [])
         occurrence_count = sum(1 for row in filtered_rows if len(row) > 2 and clean(row[2]))
-        production_count = sum(1 for row in filtered_rows if len(row) > 32 and clean(row[32]))
+        # 총 생산건수는 업로드 행 수가 아니라 현재 선택 조건에 해당하는 검수 조립수 합계다.
+        selected_company = getattr(self, "company_var", tk.StringVar(value="전체")).get()
+        assembly_by_month = self._inspection_assembly_by_month(selected_company)
+        production_count = int(round(sum(assembly_by_month.values())))
         ppm = occurrence_count / production_count * 1_000_000 if production_count else 0
         self.kpi_labels[0].config(text=f"{total_claims:,}건")
         self.kpi_labels[1].config(text=f"{occurrence_count:,}건")
