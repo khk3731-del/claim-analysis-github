@@ -1253,7 +1253,7 @@ class ClaimDashboard(tk.Tk):
     def _canvas_chart(self, x, y, w, h, title, data, color):
         items = list(data.items()) if isinstance(data, Counter) else list(data)
         items = items[:18]; maxv = max([v for _,v in items] or [1]); left=x+35; bottom=y+h-38
-        self.canvas.create_rectangle(x, y, x+w, y+h, outline="#777")
+        self._rounded_panel(x, y, x+w, y+h, radius=12, fill="#ffffff")
         icons = {"2)": ("△", "#ef4444"), "3)": ("◷", "#2563eb"), "4)": ("◉", "#16a34a"), "5)": ("◎", "#6d28d9")}
         icon, icon_color = next((v for k, v in icons.items() if title.startswith(k)), ("▥", "#10243d"))
         if title.startswith("2)") and self.issue_icon:
@@ -1280,7 +1280,15 @@ class ClaimDashboard(tk.Tk):
 
     def _gradient_bar(self, x1, y1, x2, y2, top_color, bottom_color):
         # 단색 막대: 그라데이션 효과 취소
-        self.canvas.create_rectangle(x1, y1, x2, y2, fill=top_color, outline="#71808a")
+        self.canvas.create_rectangle(x1, y1, x2, y2, fill=top_color, outline="")
+
+    def _rounded_panel(self, x1, y1, x2, y2, radius=12, fill="#ffffff"):
+        """Draw a filled rounded panel without a border on a Tk canvas."""
+        r = min(radius, (x2 - x1) / 2, (y2 - y1) / 2)
+        self.canvas.create_rectangle(x1 + r, y1, x2 - r, y2, fill=fill, outline="")
+        self.canvas.create_rectangle(x1, y1 + r, x2, y2 - r, fill=fill, outline="")
+        for cx, cy, start in ((x1 + r, y1 + r, 90), (x2 - r, y1 + r, 0), (x2 - r, y2 - r, 270), (x1 + r, y2 - r, 180)):
+            self.canvas.create_arc(cx - r, cy - r, cx + r, cy + r, start=start, extent=90, fill=fill, outline="")
 
     def _monthly_combo(self, x, y, w, h):
         # 발생월: 통보서 앞자리 6개(index 2)
