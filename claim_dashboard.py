@@ -76,9 +76,27 @@ class VirtualCostTable(tk.Frame):
                 self.canvas.create_rectangle(x,0,x+w,self.head_h,fill="#173F6B",outline="#AAB8C8")
                 self.canvas.create_text(x+w/2,self.head_h/2,text=str(header),fill="white",font=(KOREAN_FONT,10,"bold"))
             x += w
+        # 원본 보고서처럼 구분 열의 연속된 행을 하나의 병합 셀로 표시합니다.
+        spans = []
+        start = None
+        for index, row in enumerate(self.rows + [["", ""]]):
+            value = str(row[0]) if row else ""
+            if value and start is not None:
+                spans.append((start, index, self.rows[start][0]))
+                start = index
+            elif value and start is None:
+                start = index
+        if start is not None:
+            spans.append((start, len(self.rows), self.rows[start][0]))
+        for start, end, value in spans:
+            y1 = self.head_h + start * self.row_h; y2 = self.head_h + end * self.row_h
+            self.canvas.create_rectangle(0, y1, self.widths[0], y2, fill="#F7FAFC", outline="#AAB8C8")
+            self.canvas.create_text(self.widths[0] / 2, (y1 + y2) / 2, text=str(value), fill="#243B53", font=(KOREAN_FONT, 10), width=self.widths[0] - 12)
         for r in range(first,last):
             y=self.head_h+r*self.row_h; x=0; fill="#F7FAFC" if r%2==0 else "white"
             for c,value in enumerate(self.rows[r]):
+                if c == 0:
+                    continue
                 w=self.widths[c]
                 if x+w >= x0 and x <= x0+cw:
                     self.canvas.create_rectangle(x,y,x+w,y+self.row_h,fill=fill,outline="#D5DEE8")
