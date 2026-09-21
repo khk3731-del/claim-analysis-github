@@ -95,9 +95,9 @@ class DashboardView:
         a.status = ttk.Label(content, text="", background="#EEF6FF", foreground="#58718E", padding=(20, 4)); a.status.pack(fill="x")
         a.kpi_frame = tk.Frame(content, bg="#EEF6FF"); a.kpi_frame.pack(fill="x", padx=12, pady=6); a.kpi_labels=[]
         kpi_specs = (
-            ("▤", "총 클레임", "#1677E8", "free-icon-data-10139543.png"),
-            ("▥", "총 발생건수", "#1677E8", "free-icon-bar-chart-8696653.png"),
-            ("⚙", "총 생산건수", "#1677E8", "free-icon-gear-8680172.png"),
+            ("▤", "클레임", "#1677E8", "free-icon-data-10139543.png"),
+            ("▥", "발생건수", "#1677E8", "free-icon-bar-chart-8696653.png"),
+            ("⚙", "생산건수", "#1677E8", "free-icon-gear-8680172.png"),
             ("◈", "발생률(PPM)", "#F97316", "free-icon-percent-3097292.png"),
         )
         for fallback_icon, title, color, filename in kpi_specs:
