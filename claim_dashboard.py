@@ -957,22 +957,16 @@ class ClaimDashboard(tk.Tk):
         if not getattr(self, "all_rows", None) or not getattr(self, "headers", None):
             messagebox.showwarning("DATA 다운로드", "먼저 DATA를 업로드해 주세요.")
             return
-        save_path = filedialog.asksaveasfilename(
-            title="업로드 DATA 저장",
-            defaultextension=".xlsx",
-            initialfile="업로드_DATA.xlsx",
-            filetypes=[("Excel 파일", "*.xlsx")],
-        )
-        if not save_path:
-            return
         try:
             wb = Workbook(); ws = wb.active; ws.title = "업로드 DATA"
             ws.append(list(self.headers))
             for row in self.all_rows:
                 ws.append(list(row))
             ws.freeze_panes = "A2"; ws.auto_filter.ref = ws.dimensions
-            wb.save(save_path)
-            messagebox.showinfo("DATA 다운로드 완료", f"업로드한 원본 DATA를 저장했습니다.\n{save_path}")
+            preview_fd, preview_path = tempfile.mkstemp(prefix="업로드_DATA_", suffix=".xlsx")
+            os.close(preview_fd)
+            wb.save(preview_path)
+            os.startfile(preview_path)
         except Exception as exc:
             messagebox.showerror("DATA 다운로드 오류", str(exc))
 
