@@ -79,15 +79,16 @@ class VirtualCostTable(tk.Frame):
         # 원본 보고서처럼 구분 열의 연속된 행을 하나의 병합 셀로 표시합니다.
         spans = []
         start = None
+        current_value = ""
         for index, row in enumerate(self.rows + [["", ""]]):
             value = str(row[0]) if row else ""
-            if value and start is not None:
-                spans.append((start, index, self.rows[start][0]))
-                start = index
-            elif value and start is None:
-                start = index
+            if value != current_value:
+                if start is not None:
+                    spans.append((start, index, current_value))
+                current_value = value
+                start = index if value else None
         if start is not None:
-            spans.append((start, len(self.rows), self.rows[start][0]))
+            spans.append((start, len(self.rows), current_value))
         for start, end, value in spans:
             y1 = self.head_h + start * self.row_h; y2 = self.head_h + end * self.row_h
             self.canvas.create_rectangle(0, y1, self.widths[0], y2, fill="#F7FAFC", outline="#AAB8C8")
