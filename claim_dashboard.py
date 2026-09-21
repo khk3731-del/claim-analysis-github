@@ -427,8 +427,21 @@ class ClaimDashboard(tk.Tk):
             vs.grid(row=0, column=1, sticky="ns")
             hs.grid(row=1, column=0, sticky="ew")
             tree.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
-            tree.bind("<Shift-MouseWheel>", lambda e: (tree.xview_scroll(-max(1, abs(e.delta) // 30), "units"), "break")[-1])
-            tree.bind("<Control-MouseWheel>", lambda e: (tree.xview_scroll(-max(1, abs(e.delta) // 15), "units"), "break")[-1])
+            def fast_horizontal(event):
+                # Windows는 Shift+휠을 별도 이벤트로 전달하지 않는 경우가 있어
+                # state 비트로 Shift/Ctrl을 직접 판별합니다.
+                modifiers = event.state or 0
+                step = 24 if modifiers & 0x0004 else (12 if modifiers & 0x0001 else 0)
+                if step:
+                    direction = -1 if event.delta > 0 else 1
+                    tree.xview_scroll(direction * step, "units")
+                    return "break"
+                return None
+            tree.bind("<MouseWheel>", fast_horizontal, add="+")
+            tree.bind("<Shift-MouseWheel>", fast_horizontal, add="+")
+            tree.bind("<Control-MouseWheel>", fast_horizontal, add="+")
+            tree.bind("<Shift-KeyPress-Left>", lambda e: (tree.xview_scroll(-24, "units"), "break")[-1])
+            tree.bind("<Shift-KeyPress-Right>", lambda e: (tree.xview_scroll(24, "units"), "break")[-1])
             self._cost_widgets = (tree, wb)
             self._update_cost_view()
         except Exception as exc:
