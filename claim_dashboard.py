@@ -476,7 +476,8 @@ class ClaimDashboard(tk.Tk):
                 cell.border = openpyxl.styles.Border(left=openpyxl.styles.Side(style="thin", color="C8D3DF"), right=openpyxl.styles.Side(style="thin", color="C8D3DF"), top=openpyxl.styles.Side(style="thin", color="C8D3DF"), bottom=openpyxl.styles.Side(style="thin", color="C8D3DF"))
                 cell.alignment = openpyxl.styles.Alignment(horizontal="center")
         # 숨김 보조표로 월별 차트를 대시보드와 같은 생산월/발생월/PPM 구성으로 만든다.
-        helper_col = 40
+        # 월별 표(월 수에 따라 수십 열 확장)와 겹치지 않도록 보조 데이터는 CV열 이후에 둔다.
+        helper_col = 100
         for ci, title in enumerate(("월", "생산월", "발생월", "PPM"), helper_col): ws.cell(1, ci, title)
         for ri, lab in enumerate(labels, 2):
             ws.cell(ri, helper_col, lab); ws.cell(ri, helper_col + 1, prod.get(lab, 0)); ws.cell(ri, helper_col + 2, occur.get(lab, 0)); ws.cell(ri, helper_col + 3, table_rows[4][1][ri - 2])
@@ -489,7 +490,7 @@ class ClaimDashboard(tk.Tk):
         if self.market_var.get() != "D": sections.append(("5) 국가별 분석", self._top5_items(self._country_counter())))
         positions = ["A30", "G30", "M30", "S30"]
         for pos, (title, items) in zip(positions, sections):
-            start_col = 40 + positions.index(pos) * 3
+            start_col = 110 + positions.index(pos) * 3
             ws.cell(1, start_col, title); ws.cell(2, start_col, "항목"); ws.cell(2, start_col + 1, "건수")
             for ri, (label, value) in enumerate(items, 3):
                 ws.cell(ri, start_col, str(label).replace("\n", " ")); ws.cell(ri, start_col + 1, value)
@@ -497,7 +498,7 @@ class ClaimDashboard(tk.Tk):
             ws.add_chart(c, pos)
         # Excel은 숨김 열의 데이터를 차트에서 제외할 수 있으므로, 보조 데이터 열은 숨기지 않고
         # 인쇄 영역 밖에 유지한다. 열 폭만 줄여 보고서 본문에서는 보이지 않게 한다.
-        for col in range(40, 52):
+        for col in range(100, 126):
             ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 2
         for col in range(1, max(26, len(labels) + 2)): ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 10
         ws.freeze_panes = "B22"; ws.sheet_view.showGridLines = False
