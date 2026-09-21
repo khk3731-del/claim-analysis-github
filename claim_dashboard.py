@@ -108,12 +108,7 @@ class ClaimDashboard(tk.Tk):
             self.source = payload.get("source_name", "저장된 업로드 데이터")
             self.file_label.config(text=f"저장 데이터 · {self.source}")
             self.status.config(text=f"{len(rows):,}건 복원됨 · 저장 데이터 자동 불러오기 완료")
-            if self.kpi_labels:
-                total = len(rows)
-                self.kpi_labels[0].config(text=f"{total:,}건")
-                self.kpi_labels[1].config(text=f"{total:,}건")
-                self.kpi_labels[2].config(text=f"{sum(1 for r in rows if len(r)>31 and clean(r[31])):,}건")
-                self.kpi_labels[3].config(text=f"{(total / max(total,1) * 1_000_000 / 3000):,.0f}")
+            self._update_kpis()
             self._fill_tree(headers, rows[:1000])
             self._populate_filters()
             self._schedule_render()
@@ -990,12 +985,7 @@ class ClaimDashboard(tk.Tk):
         self._save_data()
         self.file_label.config(text=os.path.basename(path))
         self.status.config(text=f"{len(self.rows):,}건 로드됨 · 열 수 {len(headers)} · 시트: {sheet_name} · 형식: {suffix}")
-        if self.kpi_labels:
-            total = len(self.rows)
-            self.kpi_labels[0].config(text=f"{total:,}건")
-            self.kpi_labels[1].config(text=f"{total:,}건")
-            self.kpi_labels[2].config(text=f"{sum(1 for r in self.rows if len(r)>31 and clean(r[31])):,}건")
-            self.kpi_labels[3].config(text=f"{(total / max(total,1) * 1_000_000 / 3000):,.0f}")
+        self._update_kpis()
         self._fill_tree(headers, self.rows[:1000])
         self._populate_filters()
         self.update_idletasks()
@@ -1130,6 +1120,20 @@ class ClaimDashboard(tk.Tk):
     def model_changed(self):
         self.selected_names = set()
         self.name_var.set("전체")
+
+    def _update_kpis(self):
+        """Update KPI cards from the complete upload and current filtered rows."""
+        if not getattr(self, "kpi_labels", None):
+            return
+        total_claims = len(getattr(self, "all_rows", []))
+        filtered_rows = getattr(self, "rows", [])
+        occurrence_count = sum(1 for row in filtered_rows if len(row) > 2 and clean(row[2]))
+        production_count = sum(1 for row in filtered_rows if len(row) > 32 and clean(row[32]))
+        ppm = occurrence_count / production_count * 1_000_000 if production_count else 0
+        self.kpi_labels[0].config(text=f"{total_claims:,}건")
+        self.kpi_labels[1].config(text=f"{occurrence_count:,}건")
+        self.kpi_labels[2].config(text=f"{production_count:,}건")
+        self.kpi_labels[3].config(text=f"{ppm:,.0f}")
         self.apply_filters()
 
     def apply_filters(self):
@@ -1142,6 +1146,7 @@ class ClaimDashboard(tk.Tk):
                            and (market == "전체" or (len(r) > 1 and clean(r[1]) == market))
                            and (not names or (len(r) > 41 and clean(r[41]) in names))}
         self.rows = self.engine.filter_rows(company, model, market, parts, names)
+        self._update_kpis()
         name_text = "전체" if not names else ", ".join(sorted(names)[:3]) + (" 외" if len(names) > 3 else "")
         all_parts_selected = bool(available_parts) and parts == available_parts
         part_text = "전체" if not parts or all_parts_selected else ", ".join(sorted(parts)[:3]) + (" 외" if len(parts) > 3 else "")
