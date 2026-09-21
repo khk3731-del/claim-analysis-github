@@ -552,14 +552,18 @@ class ClaimDashboard(tk.Tk):
                 if len(raw) > 1 and raw[1] and (len(raw) > 2 and raw[2] or "KMC" in raw[1].upper() or "HMC" in raw[1].upper() or "WIA" in raw[1].upper() or "HMB" in raw[1].upper() or "MOBIS" in raw[1].upper()):
                     current_group = raw[1]
                 group = current_group
-                label = raw[2] if len(raw) > 2 else item
-                is_sales = "매출액" in " ".join(raw[:5])
+                is_group = bool(raw[1] and ("KMC" in raw[1].upper() or "HMC" in raw[1].upper() or "WIA" in raw[1].upper() or "HMB" in raw[1].upper() or "MOBIS" in raw[1].upper()))
+                label = raw[2] if len(raw) > 2 and raw[2] else (raw[1] if len(raw) > 1 and raw[1] and not is_group else item)
+                if not is_group and label in ("매출액(백만원)", "매출액 대비 클레임율"):
+                    group = ""
+                is_sales = "매출액" in label
+                is_ratio = "클레임율" in label or "대비" in label
                 divisor = 1000000 if is_sales else 1000
                 formatted = []
                 for source_index in month_positions:
                     value = row[source_index] if source_index < len(row) else None
                     if isinstance(value, (int, float)) and not isinstance(value, bool):
-                        formatted.append(f"{value / divisor:,.0f}")
+                        formatted.append(f"{value:,.2f}" if is_ratio else f"{value / divisor:,.0f}")
                     else:
                         formatted.append(clean(value))
                 # 제목/구분만 있고 월별 값이 없는 장식 행은 제외합니다.
