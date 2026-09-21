@@ -376,8 +376,9 @@ class ClaimDashboard(tk.Tk):
             tk.Label(control, text=f"전체 DATA 등록 완료 · 시트 {len(wb.sheetnames)}개 · 행 {total_rows:,} · 계산 결과 표시 · 수식 검증 {formula_count:,}개", bg="#EEF6FF", fg="#102A4C", font=(KOREAN_FONT, 10, "bold")).pack(side="left")
             body = tk.Frame(win, bg="#EEF6FF"); body.pack(fill="both", expand=True, padx=14, pady=8)
             table_frame = tk.Frame(body, bg="white"); table_frame.pack(fill="both", expand=True, pady=(10, 0))
-            ttk.Style(win).configure("Cost.Treeview", rowheight=30, font=(KOREAN_FONT, 10), background="white", fieldbackground="white", foreground="#243B53")
-            ttk.Style(win).configure("Cost.Treeview.Heading", font=(KOREAN_FONT, 10, "bold"), background="#173F6B", foreground="white", padding=8)
+            cost_style = ttk.Style(win)
+            cost_style.configure("Cost.Treeview", rowheight=30, font=(KOREAN_FONT, 10), background="white", fieldbackground="white", foreground="#243B53", borderwidth=1, relief="solid", bordercolor="#AAB8C8", lightcolor="#AAB8C8", darkcolor="#AAB8C8")
+            cost_style.configure("Cost.Treeview.Heading", font=(KOREAN_FONT, 10, "bold"), background="#173F6B", foreground="white", padding=8, borderwidth=1, relief="solid")
             tree = ttk.Treeview(table_frame, show="headings", style="Cost.Treeview"); tree.pack(side="left", fill="both", expand=True)
             tree.tag_configure("even", background="#F7FAFC")
             tree.tag_configure("odd", background="#FFFFFF")
@@ -411,6 +412,12 @@ class ClaimDashboard(tk.Tk):
         for ws in wb.worksheets:
             for row_no, row in enumerate(ws.iter_rows(values_only=True), start=1):
                 raw = [clean(v) for v in row]
+                row_months = [clean(v) for v in row[4:4 + len(month_headers)]]
+                # 원본의 월 헤더 행은 이미 파란색 표 머리글로 표시했으므로
+                # 데이터 영역에 중복 삽입하지 않습니다.
+                matching_months = sum(a == b and a != "" for a, b in zip(row_months, month_headers))
+                if matching_months >= max(3, len(month_headers) // 2):
+                    continue
                 item = next((v for v in raw[:5] if v), "")
                 unit = "백만원" if any("백만원" in v.replace(" ", "") for v in raw[:5]) else ("천원" if any("천원" in v.replace(" ", "") for v in raw[:5]) else "")
                 group = raw[1] if len(raw) > 1 else ""
