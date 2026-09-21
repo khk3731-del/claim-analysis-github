@@ -303,6 +303,7 @@ class ClaimDashboard(tk.Tk):
         self.bottom_canvas.grid(row=1, column=0, sticky="nsew")
         self.canvas = self.bottom_canvas
         self.bottom_canvas.bind("<Configure>", lambda e: self._schedule_render())
+        self.bottom_canvas.bind("<Button-1>", self._on_chart_detail_click)
         self.tree = ttk.Treeview(self.detail_tab, show="headings")
         self.tree.pack(side="left", fill="both", expand=True)
         sb = ttk.Scrollbar(self.detail_tab, orient="vertical", command=self.tree.yview)
@@ -1293,6 +1294,8 @@ class ClaimDashboard(tk.Tk):
         else:
             self.canvas.create_text(x, y-7, text=icon, anchor="sw", font=(KOREAN_FONT, 18, "bold"), fill=icon_color)
         self.canvas.create_text(x+58, y-7, text=title, anchor="sw", font=(KOREAN_FONT, 15, "bold"), fill="#10243d")
+        detail = self.canvas.create_text(x+w-62, y-7, text="자세히 보기 〉", anchor="sw", font=(KOREAN_FONT, 9, "bold"), fill="#1769d4", tags=("chart_detail",))
+        self.canvas.tag_bind(detail, "<Button-1>", lambda _event, chart_title=title: self._open_chart_detail(chart_title))
         bw = max(8, (w-50)/max(1,len(items))-5)
         for i,(lab,v) in enumerate(items):
             bx=left+i*(bw+5); bh=(h-65)*v/maxv; by=bottom-bh
@@ -1303,6 +1306,16 @@ class ClaimDashboard(tk.Tk):
                 mid = (len(label) + 1) // 2
                 label = label[:mid] + "\n" + label[mid:]
             self.canvas.create_text(bx+bw/2, bottom+4, text=label, anchor="n", angle=0, font=(KOREAN_FONT, 8))
+
+    def _open_chart_detail(self, title):
+        if title.startswith("2)"):
+            self.show_issue_analysis()
+        elif title.startswith("5)"):
+            self.show_country_analysis()
+
+    def _on_chart_detail_click(self, event):
+        # Text tag bindings handle the actual button; this handler keeps the canvas focus behavior stable.
+        return None
 
     def _gradient_bar(self, x1, y1, x2, y2, top_color, bottom_color):
         # 단색 막대: 그라데이션 효과 취소
