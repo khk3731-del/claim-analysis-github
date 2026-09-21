@@ -842,11 +842,11 @@ class ClaimDashboard(tk.Tk):
                             if (source_code_idx is not None and target_code_idx is not None
                                     and source_code_idx < len(row)):
                                 mapped[target_code_idx] = row[source_code_idx]
-                        # 모비스OEM 원본의 실제 기준 열은 AT=원인코드, AU=현상코드이며,
+                        # 모비스OEM 원본의 실제 기준 열은 AU=원인코드, AV=현상코드이며,
                         # 통합 결과의 좌측 AH·AI(원인코드·현상코드)로 옮깁니다.
                         # 원본 열의 설명문/헤더명과 무관하게 사용자가 지정한 열 위치를
                         # 최우선으로 적용해 다른 매핑이 값을 덮어쓰지 않게 합니다.
-                        mobis_code_columns = ((33, 45), (34, 46))  # AH<-AT, AI<-AU
+                        mobis_code_columns = ((33, 46), (34, 47))  # AH<-AU, AI<-AV
                         for target_code_idx, source_code_idx in mobis_code_columns:
                             if (target_code_idx < len(mapped) and source_code_idx < len(row)
                                     and row[source_code_idx] not in (None, "")):
