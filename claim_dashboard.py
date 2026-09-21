@@ -41,6 +41,51 @@ def num(v):
         return None
 
 
+class VirtualCostTable(tk.Frame):
+    """현재 화면에 보이는 셀만 그리는 비용현황 가상화 표."""
+    def __init__(self, parent):
+        super().__init__(parent, bg="white", highlightbackground="#AAB8C8", highlightthickness=1)
+        self.canvas = tk.Canvas(self, bg="white", highlightthickness=0)
+        self.vbar = ttk.Scrollbar(self, orient="vertical", command=self._yview)
+        self.hbar = ttk.Scrollbar(self, orient="horizontal", command=self._xview)
+        self.canvas.grid(row=0, column=0, sticky="nsew"); self.vbar.grid(row=0, column=1, sticky="ns"); self.hbar.grid(row=1, column=0, sticky="ew")
+        self.rowconfigure(0, weight=1); self.columnconfigure(0, weight=1)
+        self.canvas.configure(yscrollcommand=self.vbar.set, xscrollcommand=self.hbar.set)
+        self.canvas.bind("<Configure>", lambda e: self.redraw())
+        self.headers=[]; self.rows=[]; self.widths=[]; self.row_h=30; self.head_h=38
+
+    def set_data(self, headers, rows):
+        self.headers, self.rows = headers, rows
+        self.widths=[140 if i == 0 else (180 if i == 1 else 120) for i in range(len(headers))]
+        self.canvas.configure(scrollregion=(0, 0, sum(self.widths), self.head_h + len(rows)*self.row_h)); self.redraw()
+
+    def _xview(self, *args):
+        self.canvas.xview_scroll(int(args[1])*20, args[2]) if args and args[0] == "scroll" else self.canvas.xview(*args); self.redraw()
+
+    def _yview(self, *args):
+        self.canvas.yview(*args); self.redraw()
+
+    def redraw(self):
+        if not self.headers: return
+        self.canvas.delete("all"); x0=self.canvas.canvasx(0); y0=self.canvas.canvasy(0); cw=self.canvas.winfo_width(); ch=self.canvas.winfo_height()
+        first=max(0, int(max(0,y0-self.head_h)//self.row_h)); last=min(len(self.rows), int(max(0,y0+ch-self.head_h)//self.row_h)+2)
+        x=0
+        for c, header in enumerate(self.headers):
+            w=self.widths[c]
+            if x+w >= x0 and x <= x0+cw:
+                self.canvas.create_rectangle(x,0,x+w,self.head_h,fill="#173F6B",outline="#AAB8C8")
+                self.canvas.create_text(x+w/2,self.head_h/2,text=str(header),fill="white",font=(KOREAN_FONT,10,"bold"))
+            x += w
+        for r in range(first,last):
+            y=self.head_h+r*self.row_h; x=0; fill="#F7FAFC" if r%2==0 else "white"
+            for c,value in enumerate(self.rows[r]):
+                w=self.widths[c]
+                if x+w >= x0 and x <= x0+cw:
+                    self.canvas.create_rectangle(x,y,x+w,y+self.row_h,fill=fill,outline="#D5DEE8")
+                    self.canvas.create_text(x+w/2,y+self.row_h/2,text=str(value),fill="#243B53",font=(KOREAN_FONT,10))
+                x += w
+
+
 class ClaimDashboard(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -1528,69 +1573,6 @@ class ClaimDashboard(tk.Tk):
         # Text tag bindings handle the actual button; this handler keeps the canvas focus behavior stable.
         return None
 
-
-class VirtualCostTable(tk.Frame):
-    """현재 뷰포트의 셀만 그리는 고속 비용현황 표."""
-    def __init__(self, parent):
-        super().__init__(parent, bg="white", highlightbackground="#AAB8C8", highlightthickness=1)
-        self.canvas = tk.Canvas(self, bg="white", highlightthickness=0)
-        self.vbar = ttk.Scrollbar(self, orient="vertical", command=self._yview)
-        self.hbar = ttk.Scrollbar(self, orient="horizontal", command=self._xview)
-        self.canvas.grid(row=0, column=0, sticky="nsew")
-        self.vbar.grid(row=0, column=1, sticky="ns")
-        self.hbar.grid(row=1, column=0, sticky="ew")
-        self.rowconfigure(0, weight=1); self.columnconfigure(0, weight=1)
-        self.canvas.configure(yscrollcommand=self.vbar.set, xscrollcommand=self.hbar.set)
-        self.canvas.bind("<Configure>", lambda e: self.redraw())
-        self.headers = []; self.rows = []; self.col_widths = []
-        self.row_h = 30; self.head_h = 38; self._total_w = 0; self._total_h = 0
-
-    def set_data(self, headers, rows):
-        self.headers, self.rows = headers, rows
-        self.col_widths = [140 if i == 0 else (180 if i == 1 else 120) for i in range(len(headers))]
-        self._total_w = sum(self.col_widths); self._total_h = self.head_h + self.row_h * len(rows)
-        self.canvas.configure(scrollregion=(0, 0, self._total_w, self._total_h))
-        self.redraw()
-
-    def _xview(self, *args):
-        if args and args[0] == "scroll": self.canvas.xview_scroll(int(args[1]) * 20, args[2])
-        else: self.canvas.xview(*args)
-        self.redraw()
-
-    def _yview(self, *args):
-        self.canvas.yview(*args); self.redraw()
-
-    def scroll_x(self, units):
-        self.canvas.xview_scroll(units, "units"); self.redraw()
-
-    def redraw(self):
-        if not self.headers: return
-        self.canvas.delete("all")
-        x0 = self.canvas.canvasx(0); y0 = self.canvas.canvasy(0)
-        cw = max(1, self.canvas.winfo_width()); ch = max(1, self.canvas.winfo_height())
-        left = 0; right = 0
-        for i, width in enumerate(self.col_widths):
-            if left + width >= x0 and left <= x0 + cw: right = i + 1
-            left += width
-        first_row = max(0, int(max(0, y0 - self.head_h) // self.row_h))
-        last_row = min(len(self.rows), int(max(0, y0 + ch - self.head_h) // self.row_h) + 2)
-        x = 0
-        for i, header in enumerate(self.headers):
-            if i >= right: break
-            if x + self.col_widths[i] >= x0:
-                self.canvas.create_rectangle(x, 0, x + self.col_widths[i], self.head_h, fill="#173F6B", outline="#AAB8C8")
-                self.canvas.create_text(x + self.col_widths[i] / 2, self.head_h / 2, text=str(header), fill="white", font=(KOREAN_FONT, 10, "bold"))
-            x += self.col_widths[i]
-        for r in range(first_row, last_row):
-            y = self.head_h + r * self.row_h
-            x = 0; fill = "#F7FAFC" if r % 2 == 0 else "white"
-            for c, value in enumerate(self.rows[r]):
-                if c >= len(self.col_widths): break
-                width = self.col_widths[c]
-                if x + width >= x0 and x <= x0 + cw:
-                    self.canvas.create_rectangle(x, y, x + width, y + self.row_h, fill=fill, outline="#D5DEE8")
-                    self.canvas.create_text(x + width / 2, y + self.row_h / 2, text=str(value), fill="#243B53", font=(KOREAN_FONT, 10))
-                x += width
 
     def _gradient_bar(self, x1, y1, x2, y2, top_color, bottom_color):
         # 단색 막대: 그라데이션 효과 취소
