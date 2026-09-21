@@ -469,7 +469,6 @@ class ClaimDashboard(tk.Tk):
 
     def _update_cost_view(self):
         tree, wb = self._cost_widgets
-        tree.delete(*tree.get_children())
         # 서식만 남은 빈 열은 제외해 가로 이동 시 불필요한 렌더링을 줄입니다.
         max_columns = 0
         for ws in wb.worksheets:
