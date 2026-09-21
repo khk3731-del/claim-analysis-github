@@ -361,17 +361,19 @@ class ClaimDashboard(tk.Tk):
     def _render_cost_view(self, win):
         for child in win.winfo_children()[1:]: child.destroy()
         try:
-            # 수식 원문을 보존해 등록하고, 검증 결과를 함께 표시합니다.
-            wb = openpyxl.load_workbook(self.cost_source, read_only=True, data_only=False)
+            # 수식 검증은 원본 수식 파일로 수행하고, 화면에는 Excel이 계산한
+            # cached result만 표시해 수식 원문이 보이지 않도록 합니다.
+            formula_wb = openpyxl.load_workbook(self.cost_source, read_only=True, data_only=False)
+            wb = openpyxl.load_workbook(self.cost_source, read_only=True, data_only=True)
             control = tk.Frame(win, bg="#EEF6FF"); control.pack(fill="x", padx=14, pady=(0, 8))
             formula_count = 0; error_count = 0; total_rows = 0; total_cells = 0
-            for ws in wb.worksheets:
+            for ws in formula_wb.worksheets:
                 total_rows += ws.max_row or 0; total_cells += (ws.max_row or 0) * (ws.max_column or 0)
                 for row in ws.iter_rows():
                     for cell in row:
                         if isinstance(cell.value, str) and cell.value.startswith("="): formula_count += 1
                         if isinstance(cell.value, str) and cell.value.startswith("#"): error_count += 1
-            tk.Label(control, text=f"전체 DATA 등록 완료 · 시트 {len(wb.sheetnames)}개 · 행 {total_rows:,} · 수식 {formula_count:,}개 · 오류표시 {error_count:,}개", bg="#EEF6FF", fg="#102A4C", font=(KOREAN_FONT, 10, "bold")).pack(side="left")
+            tk.Label(control, text=f"전체 DATA 등록 완료 · 시트 {len(wb.sheetnames)}개 · 행 {total_rows:,} · 계산 결과 표시 · 수식 검증 {formula_count:,}개", bg="#EEF6FF", fg="#102A4C", font=(KOREAN_FONT, 10, "bold")).pack(side="left")
             body = tk.Frame(win, bg="#EEF6FF"); body.pack(fill="both", expand=True, padx=14, pady=8)
             table_frame = tk.Frame(body, bg="white"); table_frame.pack(fill="both", expand=True, pady=(10, 0))
             tree = ttk.Treeview(table_frame, show="headings"); tree.pack(side="left", fill="both", expand=True)
