@@ -361,65 +361,41 @@ class ClaimDashboard(tk.Tk):
     def _render_cost_view(self, win):
         for child in win.winfo_children()[1:]: child.destroy()
         try:
-            wb = openpyxl.load_workbook(self.cost_source, read_only=True, data_only=True)
-            known = ["HMC", "KIA", "WIA", "HMB", "MOBIS", "GLOVIS"]
+            # 수식 원문을 보존해 등록하고, 검증 결과를 함께 표시합니다.
+            wb = openpyxl.load_workbook(self.cost_source, read_only=True, data_only=False)
             control = tk.Frame(win, bg="#EEF6FF"); control.pack(fill="x", padx=14, pady=(0, 8))
-            tk.Label(control, text="고객사(다중 선택)", bg="#EEF6FF", fg="#102A4C", font=(KOREAN_FONT, 10, "bold")).pack(side="left")
-            selected = tk.Listbox(control, selectmode="multiple", height=1, width=42, exportselection=False)
-            for item in ["전체"] + known: selected.insert("end", item)
-            selected.selection_set(0); selected.pack(side="left", padx=10)
+            formula_count = 0; error_count = 0; total_rows = 0; total_cells = 0
+            for ws in wb.worksheets:
+                total_rows += ws.max_row or 0; total_cells += (ws.max_row or 0) * (ws.max_column or 0)
+                for row in ws.iter_rows():
+                    for cell in row:
+                        if isinstance(cell.value, str) and cell.value.startswith("="): formula_count += 1
+                        if isinstance(cell.value, str) and cell.value.startswith("#"): error_count += 1
+            tk.Label(control, text=f"전체 DATA 등록 완료 · 시트 {len(wb.sheetnames)}개 · 행 {total_rows:,} · 수식 {formula_count:,}개 · 오류표시 {error_count:,}개", bg="#EEF6FF", fg="#102A4C", font=(KOREAN_FONT, 10, "bold")).pack(side="left")
             body = tk.Frame(win, bg="#EEF6FF"); body.pack(fill="both", expand=True, padx=14, pady=8)
-            canvas = tk.Canvas(body, bg="white", highlightthickness=1, highlightbackground="#D7E6F5", height=330); canvas.pack(fill="x")
             table_frame = tk.Frame(body, bg="white"); table_frame.pack(fill="both", expand=True, pady=(10, 0))
             tree = ttk.Treeview(table_frame, show="headings"); tree.pack(side="left", fill="both", expand=True)
             vs = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview); hs = ttk.Scrollbar(table_frame, orient="horizontal", command=tree.xview); vs.pack(side="right", fill="y"); hs.pack(side="bottom", fill="x"); tree.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
-            self._cost_widgets = (selected, canvas, tree, wb)
+            self._cost_widgets = (tree, wb)
             self._update_cost_view()
-            selected.bind("<<ListboxSelect>>", lambda e: self._update_cost_view())
         except Exception as exc:
             messagebox.showerror("클레임 비용현황 오류", str(exc))
 
     def _update_cost_view(self):
-        selected, canvas, tree, wb = self._cost_widgets
-        choices = [selected.get(i) for i in selected.curselection()]
-        if not choices or "전체" in choices: choices = ["전체"]
-        sheets = [s for s in wb.sheetnames if "REV" not in s.upper()]
-        if choices != ["전체"]:
-            matching = [s for s in sheets if any(c.lower() in s.lower() for c in choices)]
-            if matching: sheets = matching
-        rows = []
-        for name in sheets:
-            ws = wb[name]
-            current_customer = ""
-            for row in ws.iter_rows(min_row=1, max_row=ws.max_row, values_only=True):
-                vals = list(row)
-                row_text = " ".join(clean(v).upper() for v in vals[:12] if v is not None)
-                for customer in ("HMC", "KIA", "WIA", "HMB", "MOBIS", "GLOVIS"):
-                    if customer in row_text:
-                        current_customer = customer
-                is_cost_row = any(isinstance(v, str) and ("실발생금액" in v or "변제금액" in v or "실변제금액" in v) for v in vals[:4])
-                if is_cost_row and (choices == ["전체"] or current_customer in choices or not current_customer):
-                    rows.append((current_customer or name, vals))
-        if not rows:
-            messagebox.showwarning("클레임 비용현황", "선택한 고객사의 비용 요약 블록을 찾지 못했습니다.")
-            return
-        months = [str(i) for i in range(1, 13)]
-        series = {}
-        for sheet, vals in rows:
-            label = next((clean(v) for v in vals[:4] if clean(v)), sheet)
-            series[label] = [num(v) or 0 for v in vals[4:16]]
-        canvas.delete("all"); w = max(canvas.winfo_width(), 900); h = 320; pad = 55; maxv = max((max(v) for v in series.values()), default=1)
-        canvas.create_text(20, 18, anchor="w", text="월별 클레임 비용 추이 (천원)", font=(KOREAN_FONT, 14, "bold"), fill="#102A4C")
-        colors = ["#2563EB", "#F97316", "#10B981", "#8B5CF6"]
-        for idx, (label, vals) in enumerate(series.items()):
-            pts=[]
-            for j,v in enumerate(vals):
-                x=pad+j*max(1,(w-pad*2)//11); y= h-pad-(v/maxv)*(h-pad*2); pts.extend((x,y))
-            if len(pts)>=4: canvas.create_line(*pts, fill=colors[idx%len(colors)], width=3, smooth=True)
-            canvas.create_text(pad+idx*160, h-18, text=label[:18], fill=colors[idx%len(colors)], anchor="w")
-        headers=["구분"]+months; tree.delete(*tree.get_children()); tree["columns"]=[f"c{i}" for i in range(len(headers))]
-        for i,hdr in enumerate(headers): tree.heading(f"c{i}",text=hdr); tree.column(f"c{i}",width=110,anchor="center",stretch=False)
-        for label, vals in series.items(): tree.insert("", "end", values=[label]+[f"{v:,.0f}" for v in vals])
+        tree, wb = self._cost_widgets
+        tree.delete(*tree.get_children())
+        max_columns = max((ws.max_column or 0) for ws in wb.worksheets)
+        headers = ["시트", "행"] + [f"열{i}" for i in range(1, max_columns + 1)]
+        tree["columns"] = [f"c{i}" for i in range(len(headers))]
+        for i, header in enumerate(headers):
+            tree.heading(f"c{i}", text=header)
+            tree.column(f"c{i}", width=110 if i > 1 else 130, minwidth=70, anchor="center", stretch=False)
+        for ws in wb.worksheets:
+            for row_no, row in enumerate(ws.iter_rows(values_only=True), start=1):
+                values = [ws.title, row_no] + [clean(v) for v in row]
+                values += [""] * (len(headers) - len(values))
+                if any(v not in ("", None) for v in values[2:]):
+                    tree.insert("", "end", values=values[:len(headers)])
 
     def _on_customer_menu_select(self, _event=None):
         if self.customer_menu.selection() == ("customer_upload",):
