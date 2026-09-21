@@ -543,6 +543,11 @@ class ClaimDashboard(tk.Tk):
             for row_no, row in enumerate(ws.iter_rows(values_only=True), start=1):
                 raw = [clean(v) for v in row]
                 row_months = [clean(row[i]) for i in month_positions if i < len(row) and clean(row[i])]
+                # 파란색 헤더 바로 아래의 원본 보고서 제목/설명 행은
+                # 월별 값이 없는 메타 행이므로 표에 표시하지 않습니다.
+                has_month_value = any(i < len(row) and row[i] not in (None, "") for i in month_positions)
+                if row_no <= 3 and not has_month_value:
+                    continue
                 # 원본의 월 헤더 행은 이미 파란색 표 머리글로 표시했으므로
                 # 데이터 영역에 중복 삽입하지 않습니다.
                 matching_months = sum(a == b for a, b in zip(row_months, month_headers))
