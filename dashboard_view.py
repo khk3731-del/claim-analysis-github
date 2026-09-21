@@ -46,6 +46,12 @@ class DashboardView:
 
     def _sidebar(self, side):
         a = self.app
+        graph_raw = a._load_image("free-icon-graph-2848907.png")
+        database_raw = a._load_image("free-icon-database-16778425.png")
+        graph_icon = graph_raw.subsample(max(1, graph_raw.width() // 22), max(1, graph_raw.height() // 22)) if graph_raw else None
+        database_icon = database_raw.subsample(max(1, database_raw.width() // 22), max(1, database_raw.height() // 22)) if database_raw else None
+        if graph_icon: a.image_refs.append(graph_icon)
+        if database_icon: a.image_refs.append(database_icon)
         logo = a._load_image("company_logo.png")
         if logo:
             small = logo.subsample(max(1, logo.width() // 150), max(1, logo.height() // 48))
@@ -54,11 +60,11 @@ class DashboardView:
         tk.Label(side, text="Claim Analytics", fg="#A9C8E9", bg="#082B52", font=("Segoe UI", 10)).pack(anchor="w", padx=20, pady=(2, 24))
         st = ttk.Style(a); st.configure("ModernSidebar.Treeview", background="#082B52", fieldbackground="#082B52", foreground="white", rowheight=36, borderwidth=0, font=("Malgun Gothic", 11)); st.map("ModernSidebar.Treeview", background=[("selected", "#1677E8")])
         menu = ttk.Treeview(side, show="tree", selectmode="browse", style="ModernSidebar.Treeview", height=6); menu.pack(fill="x", padx=10)
-        root = menu.insert("", "end", text="▥  클레임 분석", iid="dashboard", open=True)
+        root = menu.insert("", "end", text="클레임 분석", image=graph_icon, iid="dashboard", open=True)
         menu.insert(root, "end", text="   1. 현상별 분석", iid="issue"); menu.insert(root, "end", text="   2. 국가별 분석", iid="country"); menu.insert(root, "end", text="   3. 보고서 출력", iid="report")
         menu.selection_set(root); menu.bind("<<TreeviewSelect>>", a._on_sidebar_select); a.sidebar_menu = menu
-        for title, iid, callback in (("▣  고객사별 DATA 저장", "customer_root", a._on_customer_menu_select), ("▤  검수폴더 병합", "merge_root", a._on_merge_menu_select)):
-            t = ttk.Treeview(side, show="tree", selectmode="browse", style="ModernSidebar.Treeview", height=2); t.pack(fill="x", padx=10, pady=(18, 0)); r = t.insert("", "end", text=title, iid=iid, open=True); child = "customer_upload" if iid == "customer_root" else "merge_app"; label = "   DATA 업로드" if iid == "customer_root" else "   검수폴더 병합앱"; t.insert(r, "end", text=label, iid=child); t.bind("<<TreeviewSelect>>", callback)
+        for title, iid, callback, icon in (("고객사별 DATA 저장", "customer_root", a._on_customer_menu_select, database_icon), ("검수폴더 병합", "merge_root", a._on_merge_menu_select, database_icon)):
+            t = ttk.Treeview(side, show="tree", selectmode="browse", style="ModernSidebar.Treeview", height=2); t.pack(fill="x", padx=10, pady=(18, 0)); r = t.insert("", "end", text=title, image=icon, iid=iid, open=True); child = "customer_upload" if iid == "customer_root" else "merge_app"; label = "   DATA 업로드" if iid == "customer_root" else "   검수폴더 병합앱"; t.insert(r, "end", text=label, iid=child); t.bind("<<TreeviewSelect>>", callback)
             if iid == "customer_root": a.customer_menu = t
             else: a.merge_menu = t
         tk.Label(side, text="품질로 더 나은 내일을 만듭니다.\n\nBetter Quality\nA Brighter Tomorrow", fg="#B8D1E8", bg="#082B52", justify="left", anchor="w", font=("Malgun Gothic", 9)).pack(side="bottom", fill="x", padx=20, pady=22)
@@ -78,8 +84,22 @@ class DashboardView:
         ttk.Button(top, text="분석 시작", command=a.refresh_analysis, style="Modern.TButton").pack(side="right", padx=(12, 0))
         a.status = ttk.Label(content, text="", background="#EEF6FF", foreground="#58718E", padding=(20, 4)); a.status.pack(fill="x")
         a.kpi_frame = tk.Frame(content, bg="#EEF6FF"); a.kpi_frame.pack(fill="x", padx=12, pady=6); a.kpi_labels=[]
-        for icon, title, color in (("▤", "총 클레임", "#1677E8"), ("▥", "총 발생건수", "#1677E8"), ("⚙", "총 생산건수", "#1677E8"), ("◈", "발생률(PPM)", "#F97316")):
-            card=tk.Frame(a.kpi_frame,bg="white",highlightbackground="#D7E6F5",highlightthickness=1,padx=12,pady=10);card.pack(side="left",fill="x",expand=True,padx=6);tk.Label(card,text=icon,bg=color,fg="white",font=("Malgun Gothic",22,"bold"),width=2).pack(side="left",padx=(0,12));box=tk.Frame(card,bg="white");box.pack(side="left");tk.Label(box,text=title,bg="white",fg="#58718E",font=("Malgun Gothic",9)).pack(anchor="w");v=tk.Label(box,text="-",bg="white",fg="#102A4C",font=("Malgun Gothic",21,"bold"));v.pack(anchor="w");a.kpi_labels.append(v)
+        kpi_specs = (
+            ("▤", "총 클레임", "#1677E8", "free-icon-data-10139543.png"),
+            ("▥", "총 발생건수", "#1677E8", "free-icon-bar-chart-8696653.png"),
+            ("⚙", "총 생산건수", "#1677E8", "free-icon-gear-8680172.png"),
+            ("◈", "발생률(PPM)", "#F97316", "free-icon-percent-3097292.png"),
+        )
+        for fallback_icon, title, color, filename in kpi_specs:
+            card=tk.Frame(a.kpi_frame,bg="white",highlightbackground="#D7E6F5",highlightthickness=1,padx=12,pady=10);card.pack(side="left",fill="x",expand=True,padx=6)
+            raw_icon = a._load_image(filename)
+            card_icon = raw_icon.subsample(max(1, raw_icon.width() // 48), max(1, raw_icon.height() // 48)) if raw_icon else None
+            if card_icon:
+                a.image_refs.append(card_icon)
+                tk.Label(card, image=card_icon, bg="white").pack(side="left",padx=(0,12))
+            else:
+                tk.Label(card,text=fallback_icon,bg=color,fg="white",font=("Malgun Gothic",22,"bold"),width=2).pack(side="left",padx=(0,12))
+            box=tk.Frame(card,bg="white");box.pack(side="left");tk.Label(box,text=title,bg="white",fg="#58718E",font=("Malgun Gothic",9)).pack(anchor="w");v=tk.Label(box,text="-",bg="white",fg="#102A4C",font=("Malgun Gothic",21,"bold"));v.pack(anchor="w");a.kpi_labels.append(v)
         a.notebook=ttk.Notebook(content);a.notebook.pack(fill="both",expand=True,padx=18,pady=(4,18));a.dashboard_tab=ttk.Frame(a.notebook);a.detail_tab=ttk.Frame(a.notebook);a.notebook.add(a.dashboard_tab,text="분석 대시보드");a.notebook.add(a.detail_tab,text="원본 데이터")
         a.dashboard_tab.rowconfigure(1,weight=1);a.dashboard_tab.columnconfigure(0,weight=1);a.top_frame=tk.Frame(a.dashboard_tab,bg="white",highlightbackground="#D7E6F5",highlightthickness=1);a.top_frame.grid(row=0,column=0,sticky="ew");a.top_title=tk.Label(a.top_frame,text="▥  클레임 분석",font=("Malgun Gothic",18,"bold"),bg="white",fg="#102A4C");a.top_title.pack(anchor="w",padx=18,pady=(12,4));a.month_title_frame=tk.Frame(a.top_frame,bg="white");a.month_title_frame.pack(anchor="w");a.top_canvas=tk.Canvas(a.top_frame,bg="white",height=430,highlightthickness=0);a.top_canvas.pack(fill="x",expand=True);a.top_scroll=ttk.Scrollbar(a.top_frame,orient="horizontal",command=a.top_canvas.xview);a.top_scroll.pack(fill="x");a.top_canvas.configure(xscrollcommand=a.top_scroll.set);a.fixed_table=tk.Canvas(a.top_frame,bg="white",highlightthickness=0,width=105,height=125);a.bottom_canvas=tk.Canvas(a.dashboard_tab,bg="#EEF6FF",highlightthickness=0);a.bottom_canvas.grid(row=1,column=0,sticky="nsew");a.bottom_canvas.bind("<Configure>",lambda e:a._schedule_render());a.canvas=a.bottom_canvas;a.tree=ttk.Treeview(a.detail_tab,show="headings");a.tree.pack(fill="both",expand=True)
 

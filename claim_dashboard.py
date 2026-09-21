@@ -157,13 +157,18 @@ class ClaimDashboard(tk.Tk):
         country_icon = self._load_image("발생국가.png")
         self.country_icon = country_icon.subsample(16, 16) if country_icon else None
         if self.country_icon: self.image_refs.append(self.country_icon)
-        analysis_icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", "images", "free-icon-growth-3281306.png")
-        try:
-            analysis_icon = tk.PhotoImage(file=analysis_icon_path)
-            self.analysis_icon = analysis_icon.subsample(max(1, analysis_icon.width() // 22), max(1, analysis_icon.height() // 22))
-            self.image_refs.append(self.analysis_icon)
-        except Exception:
-            self.analysis_icon = None
+        def load_menu_icon(filename, size=22):
+            path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public", "images", filename)
+            try:
+                raw = tk.PhotoImage(file=path)
+                return raw.subsample(max(1, raw.width() // size), max(1, raw.height() // size))
+            except Exception:
+                return None
+
+        self.analysis_icon = load_menu_icon("free-icon-graph-2848907.png")
+        self.data_icon = load_menu_icon("free-icon-database-16778425.png")
+        if self.analysis_icon: self.image_refs.append(self.analysis_icon)
+        if self.data_icon: self.image_refs.append(self.data_icon)
         logo = self._load_image("company_logo.png")
         if logo:
             logo_small = logo.subsample(max(1, logo.width() // 150), max(1, logo.height() // 48))
@@ -188,13 +193,13 @@ class ClaimDashboard(tk.Tk):
         self.sidebar_menu = menu
         customer_menu = ttk.Treeview(sidebar, show="tree", selectmode="browse", style="Sidebar.Treeview", height=2)
         customer_menu.pack(fill="x", padx=8, pady=(4, 10))
-        customer_root = customer_menu.insert("", "end", text="고객사별 DATA 자동", image=self.analysis_icon, open=True, iid="customer_root")
+        customer_root = customer_menu.insert("", "end", text="고객사별 DATA 자동", image=self.data_icon, open=True, iid="customer_root")
         customer_menu.insert(customer_root, "end", text="DATA 업로드", iid="customer_upload")
         customer_menu.bind("<<TreeviewSelect>>", self._on_customer_menu_select)
         self.customer_menu = customer_menu
         merge_menu = ttk.Treeview(sidebar, show="tree", selectmode="browse", style="Sidebar.Treeview", height=2)
         merge_menu.pack(fill="x", padx=8, pady=(4, 10))
-        merge_root = merge_menu.insert("", "end", text="검수폴더 병합", image=self.analysis_icon, open=True, iid="merge_root")
+        merge_root = merge_menu.insert("", "end", text="검수폴더 병합", image=self.data_icon, open=True, iid="merge_root")
         merge_menu.insert(merge_root, "end", text="검수폴더 병합앱", iid="merge_app")
         merge_menu.bind("<<TreeviewSelect>>", self._on_merge_menu_select)
         self.merge_menu = merge_menu
@@ -260,7 +265,7 @@ class ClaimDashboard(tk.Tk):
             card = tk.Frame(self.kpi_frame, background="white", highlightbackground="#d7e6f5", highlightthickness=1, padx=8, pady=6)
             card.pack(side="left", fill="x", expand=True, padx=7)
             card_icon = None
-            icon_file = {"총 로드 수": "total_upload.png", "총 발생량": "total_occurrence.png", "총 생산량": "total_production.png", "발생율(PPM)": "ppm.png"}.get(title)
+            icon_file = {"총 로드 수": "free-icon-data-10139543.png", "총 발생량": "free-icon-bar-chart-8696653.png", "총 생산량": "free-icon-gear-8680172.png", "발생율(PPM)": "free-icon-percent-3097292.png"}.get(title)
             if icon_file:
                 raw_icon = self._load_image(icon_file)
                 icon_scale = 14 if title == "총 생산량" else 16
