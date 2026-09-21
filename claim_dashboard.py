@@ -1467,6 +1467,51 @@ class ClaimDashboard(tk.Tk):
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "검수종합_현황.xlsx")
         if not os.path.exists(path):
             return {}
+        # 검수 Excel은 한 번만 읽고 이후 콤보박스 변경에서는 메모리만 필터링한다.
+        if not hasattr(self, "_inspection_records"):
+            self._inspection_records = None
+        if self._inspection_records is None:
+            try:
+                book = openpyxl.load_workbook(path, read_only=True, data_only=True)
+                sheet = book[book.sheetnames[0]]; iterator = sheet.iter_rows(values_only=True); headers = next(iterator, ())
+                normalized = {re.sub(r"\s+", "", clean(value)): index for index, value in enumerate(headers)}
+                month_col = normalized.get("해당년월", 0); quantity_col = normalized.get("수량누계", 8)
+                customer_col = normalized.get("거래처명", 1); vehicle_col = normalized.get("차종", 12)
+                name_col = normalized.get("품명", 4); de_col = normalized.get("D/E", 5)
+                records = []
+                for row in iterator:
+                    if len(row) <= max(month_col, quantity_col): continue
+                    month = month_key(row[month_col]);
+                    if not month: continue
+                    try: quantity = float(str(row[quantity_col]).replace(",", "").strip())
+                    except (TypeError, ValueError): quantity = 0
+                    records.append((month, clean(row[customer_col]) if len(row) > customer_col else "", clean(row[vehicle_col]) if len(row) > vehicle_col else "", clean(row[name_col]) if len(row) > name_col else "", clean(row[de_col]) if len(row) > de_col else "", quantity))
+                book.close(); self._inspection_records = records
+            except Exception:
+                self._inspection_records = []
+        totals = Counter()
+        for month, customer, vehicle, part_name, de_value, quantity in self._inspection_records:
+            if selected_company == "WIA" or "현대위아" in selected_company:
+                if "현대위아" not in customer: continue
+            elif selected_company == "HMB":
+                if "현대자동차(주)울산" not in customer or vehicle not in ("카파", "카파주물"): continue
+            elif "모비스" in selected_company or "MOBIS" in selected_company.upper():
+                if not any(token in customer.upper() for token in ("모비스", "MOBIS")): continue
+            elif selected_company == "기아" or "기아" in selected_company:
+                if "기아" not in customer: continue
+            elif selected_company == "HMC" or "현대자동차(주)울산" in selected_company:
+                if "현대자동차(주)울산" not in customer or "주물" not in vehicle: continue
+            elif selected_company == "현대" or "현대자동차" in selected_company:
+                if "현대자동차" not in customer: continue
+            if self.market_var.get() != "전체" and de_value != self.market_var.get(): continue
+            if (selected_company == "WIA" or "현대위아" in selected_company) and "카파" in self.model_var.get():
+                if not any(keyword in part_name.upper() for keyword in ("CONVERTER", "CATALYTIC", "MANIFOLD MODULE", "카파")): continue
+            if (selected_company == "WIA" or "현대위아" in selected_company) and "KA4" in self.model_var.get().upper() and "MUFFLER ASSY-FR" in self.name_var.get().upper():
+                if "FRT" not in part_name.upper() or "MUFFLER" not in part_name.upper(): continue
+            totals[month] += quantity
+        result = {str(month): float(value) for month, value in totals.items() if str(month)}
+        self._inspection_assembly_cache[cache_key] = result
+        return result
         try:
             # 집계에 필요한 열만 스트리밍으로 읽어 pandas 전체 형 변환을 피한다.
             book = openpyxl.load_workbook(path, read_only=True, data_only=True)
