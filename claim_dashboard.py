@@ -451,11 +451,11 @@ class ClaimDashboard(tk.Tk):
         if not month_headers:
             month_headers = [f"열{i}" for i in range(5, max_columns + 1)]
             month_positions = list(range(4, max_columns))
-        headers = ["구분", "항목", "금액 단위"] + month_headers
+        headers = ["구분", "항목"] + month_headers
         tree["columns"] = [f"c{i}" for i in range(len(headers))]
         for i, header in enumerate(headers):
             tree.heading(f"c{i}", text=header)
-            tree.column(f"c{i}", width=120 if i >= 3 else (180 if i == 1 else 140), minwidth=60, anchor="center", stretch=False)
+            tree.column(f"c{i}", width=120 if i >= 2 else (180 if i == 1 else 140), minwidth=60, anchor="center", stretch=False)
         display_row = 0
         for ws in wb.worksheets:
             for row_no, row in enumerate(ws.iter_rows(values_only=True), start=1):
@@ -467,20 +467,21 @@ class ClaimDashboard(tk.Tk):
                 if matching_months >= max(3, len(month_headers) // 2):
                     continue
                 item = next((v for v in raw[:5] if v), "")
-                unit = "백만원" if any("백만원" in v.replace(" ", "") for v in raw[:5]) else ("천원" if any("천원" in v.replace(" ", "") for v in raw[:5]) else "")
                 group = raw[1] if len(raw) > 1 else ""
                 label = raw[2] if len(raw) > 2 else item
+                is_sales = "매출액" in " ".join(raw[:5])
+                divisor = 1000000 if is_sales else 1000
                 formatted = []
                 for source_index in month_positions:
                     value = row[source_index] if source_index < len(row) else None
                     if isinstance(value, (int, float)) and not isinstance(value, bool):
-                        formatted.append(f"{value:,.1f}" if isinstance(value, float) and not value.is_integer() else f"{value:,.0f}")
+                        formatted.append(f"{value / divisor:,.0f}")
                     else:
                         formatted.append(clean(value))
                 # 제목/구분만 있고 월별 값이 없는 장식 행은 제외합니다.
-                if not any(v not in ("", None) for v in formatted) and not unit:
+                if not any(v not in ("", None) for v in formatted):
                     continue
-                values = [group, label, unit] + formatted
+                values = [group, label] + formatted
                 values += [""] * (len(headers) - len(values))
                 if any(v not in ("", None) for v in values):
                     tree.insert("", "end", values=values[:len(headers)], tags=("even" if display_row % 2 == 0 else "odd",))
