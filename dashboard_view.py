@@ -64,7 +64,7 @@ class DashboardView:
         root = menu.insert("", "end", text="클레임 분석", image=graph_icon, iid="dashboard", open=True, tags=("section_header",))
         menu.insert(root, "end", text="   보고서 출력", iid="report")
         menu.selection_set(root); menu.bind("<<TreeviewSelect>>", a._on_sidebar_select); a.sidebar_menu = menu
-        for title, iid, callback, icon in (("고객사별 DATA 저장", "customer_root", a._on_customer_menu_select, database_icon), ("검수폴더 병합", "merge_root", a._on_merge_menu_select, database_icon)):
+        for title, iid, callback, icon in (("고객사별 클레임 DATA 병합", "customer_root", a._on_customer_menu_select, database_icon), ("검수폴더 병합", "merge_root", a._on_merge_menu_select, database_icon)):
             t = ttk.Treeview(side, show="tree", selectmode="browse", style="ModernSidebar.Treeview", height=2); t.pack(fill="x", padx=10, pady=(18, 0)); t.tag_configure("section_header", background="#1769D4", foreground="white"); r = t.insert("", "end", text=title, image=icon, iid=iid, open=True, tags=("section_header",)); child = "customer_upload" if iid == "customer_root" else "merge_app"; label = "   DATA 업로드" if iid == "customer_root" else "   검수폴더 병합앱"; t.insert(r, "end", text=label, iid=child); t.bind("<<TreeviewSelect>>", callback)
             if iid == "customer_root": a.customer_menu = t
             else: a.merge_menu = t
