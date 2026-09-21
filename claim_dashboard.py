@@ -53,6 +53,8 @@ class ClaimDashboard(tk.Tk):
         self.all_rows = []
         self.engine = ClaimDataEngine()
         self.source = ""
+        self.cost_source = ""
+        self._restore_cost_source()
         self._inspection_assembly_cache = None
         self._render_job = None
         self._build_ui()
@@ -74,6 +76,19 @@ class ClaimDashboard(tk.Tk):
     def _saved_data_path(self):
         # GitHub에 함께 커밋할 수 있는 프로젝트 내 영구 저장 파일
         return os.path.join(os.path.dirname(os.path.abspath(__file__)), "claim_dashboard_data.json")
+
+    @property
+    def _saved_cost_source_path(self):
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)), "cost_dashboard_source.json")
+
+    def _restore_cost_source(self):
+        try:
+            with open(self._saved_cost_source_path, "r", encoding="utf-8") as f:
+                path = json.load(f).get("path", "")
+            if path and os.path.exists(path):
+                self.cost_source = path
+        except Exception:
+            self.cost_source = ""
 
     def _save_data(self):
         """업로드 데이터를 프로젝트 파일에 저장해 재실행/PC 이동 후 복원한다."""
@@ -345,6 +360,11 @@ class ClaimDashboard(tk.Tk):
         )
         if path:
             self.cost_source = path
+            try:
+                with open(self._saved_cost_source_path, "w", encoding="utf-8") as f:
+                    json.dump({"path": path}, f, ensure_ascii=False, indent=2)
+            except OSError:
+                pass
             self.show_cost_analysis()
 
     def show_cost_analysis(self):
@@ -403,11 +423,11 @@ class ClaimDashboard(tk.Tk):
             if month_headers: break
         if not month_headers:
             month_headers = [f"열{i}" for i in range(5, max_columns + 1)]
-        headers = ["시트", "구분", "항목", "금액 단위"] + month_headers
+        headers = ["구분", "항목", "금액 단위"] + month_headers
         tree["columns"] = [f"c{i}" for i in range(len(headers))]
         for i, header in enumerate(headers):
             tree.heading(f"c{i}", text=header)
-            tree.column(f"c{i}", width=120 if i >= 4 else (180 if i == 2 else 70), minwidth=60, anchor="center", stretch=False)
+            tree.column(f"c{i}", width=120 if i >= 3 else (180 if i == 1 else 140), minwidth=60, anchor="center", stretch=False)
         display_row = 0
         for ws in wb.worksheets:
             for row_no, row in enumerate(ws.iter_rows(values_only=True), start=1):
@@ -428,9 +448,12 @@ class ClaimDashboard(tk.Tk):
                         formatted.append(f"{value:,.1f}" if isinstance(value, float) and not value.is_integer() else f"{value:,.0f}")
                     else:
                         formatted.append(clean(value))
-                values = [ws.title, group, label, unit] + formatted
+                # 제목/구분만 있고 월별 값이 없는 장식 행은 제외합니다.
+                if not any(v not in ("", None) for v in formatted) and not unit:
+                    continue
+                values = [group, label, unit] + formatted
                 values += [""] * (len(headers) - len(values))
-                if any(v not in ("", None) for v in values[1:]):
+                if any(v not in ("", None) for v in values):
                     tree.insert("", "end", values=values[:len(headers)], tags=("even" if display_row % 2 == 0 else "odd",))
                     display_row += 1
 
