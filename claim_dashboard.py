@@ -1120,6 +1120,7 @@ class ClaimDashboard(tk.Tk):
     def model_changed(self):
         self.selected_names = set()
         self.name_var.set("전체")
+        self.apply_filters()
 
     def _update_kpis(self):
         """Update KPI cards from the complete upload and current filtered rows."""
@@ -1134,7 +1135,6 @@ class ClaimDashboard(tk.Tk):
         self.kpi_labels[1].config(text=f"{occurrence_count:,}건")
         self.kpi_labels[2].config(text=f"{production_count:,}건")
         self.kpi_labels[3].config(text=f"{ppm:,.0f}")
-        self.apply_filters()
 
     def apply_filters(self):
         self._update_part_options()
