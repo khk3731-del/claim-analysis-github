@@ -92,8 +92,8 @@ class DashboardView:
             ("◈", "발생률(PPM)", "#F97316", "free-icon-percent-3097292.png"),
         )
         for fallback_icon, title, color, filename in kpi_specs:
-            card_shell=tk.Frame(a.kpi_frame,bg="#D7E2EF",bd=0);card_shell.pack(side="left",fill="x",expand=True,padx=6,pady=(0,3))
-            card=tk.Canvas(card_shell,bg="#D7E2EF",highlightthickness=0,height=82,bd=0);card.pack(fill="both",expand=True)
+            card_shell=tk.Frame(a.kpi_frame,bg="white",bd=0);card_shell.pack(side="left",fill="x",expand=True,padx=6,pady=(0,3))
+            card=tk.Canvas(card_shell,bg="white",highlightthickness=0,height=82,bd=0);card.pack(fill="both",expand=True)
             def rounded(canvas, width, height):
                 radius=12; canvas.delete("panel")
                 canvas.create_rectangle(2+radius, 3, width-2-radius, height-2, fill="white", outline="white", tags="panel")
