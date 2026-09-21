@@ -87,8 +87,22 @@ class ClaimDashboard(tk.Tk):
                 path = json.load(f).get("path", "")
             if path and os.path.exists(path):
                 self.cost_source = path
+                return
         except Exception:
-            self.cost_source = ""
+            pass
+        # 이전 버전에서 업로드해 경로 저장이 없었던 경우에도 사용자가 제공한
+        # 비용현황 원본을 자동으로 찾아 기존 DATA를 이어서 사용합니다.
+        fallback_dir = r"W:\김훈기\김훈기\2.클레임 업무\★클레임 자료"
+        if os.path.isdir(fallback_dir):
+            candidates = [os.path.join(fallback_dir, name) for name in os.listdir(fallback_dir)
+                          if name.startswith("클레임 금액 종합현황") and name.lower().endswith((".xlsx", ".xlsm", ".xls"))]
+            if candidates:
+                self.cost_source = max(candidates, key=os.path.getmtime)
+                try:
+                    with open(self._saved_cost_source_path, "w", encoding="utf-8") as f:
+                        json.dump({"path": self.cost_source}, f, ensure_ascii=False, indent=2)
+                except OSError:
+                    pass
 
     def _save_data(self):
         """업로드 데이터를 프로젝트 파일에 저장해 재실행/PC 이동 후 복원한다."""
@@ -369,7 +383,7 @@ class ClaimDashboard(tk.Tk):
 
     def show_cost_analysis(self):
         if not getattr(self, "cost_source", ""):
-            self.open_cost_data()
+            messagebox.showinfo("클레임 비용현황", "등록된 비용 DATA가 없습니다. 사이드바의 DATA 업로드를 눌러 한 번 등록해 주세요.")
             return
         win = tk.Toplevel(self); win.title("클레임 비용현황"); win.geometry("1500x900"); win.configure(bg="#EEF6FF")
         top = tk.Frame(win, bg="white", highlightbackground="#D7E6F5", highlightthickness=1); top.pack(fill="x", padx=14, pady=14)
