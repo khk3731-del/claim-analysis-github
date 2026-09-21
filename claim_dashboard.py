@@ -444,11 +444,6 @@ class ClaimDashboard(tk.Tk):
         ws["A1"] = "클레임 자동 분석"; ws["A2"] = "1) 월별 발생 현황 · 발생율(PPM)"
         ws["A1"].font = openpyxl.styles.Font(name="Noto Sans KR", size=16, bold=True, color="10243D")
         ws["A2"].font = openpyxl.styles.Font(name="Noto Sans KR", size=12, bold=True, color="10243D")
-        table_header_row = 22
-        ws.cell(table_header_row, 1, "월")
-        ws.cell(table_header_row, 2, "생산월")
-        ws.cell(table_header_row, 3, "발생월")
-        ws.cell(table_header_row, 4, "PPM")
         occur = Counter(month_key(clean(r[2])[:6]) for r in self.rows if len(r) > 2 and clean(r[2])[:6])
         assembly_col = 32  # 업로드 DATA의 Excel AG열
         prod = Counter()
@@ -461,22 +456,38 @@ class ClaimDashboard(tk.Tk):
             prod[assembly_month or occurrence_month] += 1
         visible_months = set(occur) | set(prod)
         labels = sorted((s for s in visible_months if (int(s.split('.')[0]), int(s.split('.')[1])) >= (21, 1)), key=lambda s: (int(s.split('.')[0]), int(s.split('.')[1])))
-        for row_index, lab in enumerate(labels, table_header_row + 1):
-            occurrence_count = occur.get(lab, 0)
-            production_count = prod.get(lab, 0)
-            ppm = round(occurrence_count / production_count * 1_000_000 / 3000) if production_count else 0
-            ws.cell(row_index, 1, lab)
-            ws.cell(row_index, 2, production_count)
-            ws.cell(row_index, 3, occurrence_count)
-            ws.cell(row_index, 4, ppm)
-        chart = BarChart(); chart.title = "1) 월별 발생 현황 · 발생율(PPM)"; chart.y_axis.title = "건수"; chart.x_axis.title = "월"
-        data_last_row = table_header_row + len(labels)
-        chart.add_data(Reference(ws, min_col=2, max_col=3, min_row=table_header_row, max_row=data_last_row), titles_from_data=True)
-        chart.set_categories(Reference(ws, min_col=1, min_row=table_header_row + 1, max_row=data_last_row)); chart.height = 8; chart.width = 24
+        official_assembly = self._inspection_assembly_by_month(self.company_var.get())
+        # 대시보드와 동일한 가로형 월별 표
+        table_header_row = 21
+        table_rows = [("월", labels), ("생산월", [prod.get(lab, 0) for lab in labels]),
+                      ("발생월", [occur.get(lab, 0) for lab in labels]),
+                      ("조립수", [round(official_assembly.get(lab, 0)) for lab in labels]),
+                      ("PPM", [round(occur.get(lab, 0) / official_assembly.get(lab, 0) * 1_000_000) if official_assembly.get(lab, 0) else 0 for lab in labels])]
+        for col, value in enumerate(["구분"] + labels, 1):
+            cell = ws.cell(table_header_row, col, value)
+            cell.font = openpyxl.styles.Font(name="Malgun Gothic", size=9, bold=True, color="20354B")
+            cell.fill = openpyxl.styles.PatternFill("solid", fgColor="E8F1FB")
+            cell.alignment = openpyxl.styles.Alignment(horizontal="center")
+        for ri, (name, values) in enumerate(table_rows, table_header_row + 1):
+            ws.cell(ri, 1, name)
+            for ci, value in enumerate(values, 2): ws.cell(ri, ci, value)
+            for ci in range(1, len(labels) + 2):
+                cell = ws.cell(ri, ci); cell.fill = openpyxl.styles.PatternFill("solid", fgColor="FFFFFF")
+                cell.border = openpyxl.styles.Border(left=openpyxl.styles.Side(style="thin", color="C8D3DF"), right=openpyxl.styles.Side(style="thin", color="C8D3DF"), top=openpyxl.styles.Side(style="thin", color="C8D3DF"), bottom=openpyxl.styles.Side(style="thin", color="C8D3DF"))
+                cell.alignment = openpyxl.styles.Alignment(horizontal="center")
+        # 숨김 보조표로 월별 차트를 대시보드와 같은 생산월/발생월/PPM 구성으로 만든다.
+        helper_col = 40
+        for ci, title in enumerate(("월", "생산월", "발생월", "PPM"), helper_col): ws.cell(1, ci, title)
+        for ri, lab in enumerate(labels, 2):
+            ws.cell(ri, helper_col, lab); ws.cell(ri, helper_col + 1, prod.get(lab, 0)); ws.cell(ri, helper_col + 2, occur.get(lab, 0)); ws.cell(ri, helper_col + 3, table_rows[4][1][ri - 2])
+        data_last_row = len(labels) + 1
+        chart = BarChart(); chart.title = "1) 월별 클레임 발생현황"; chart.y_axis.title = "건수"; chart.x_axis.title = "월"; chart.height = 8; chart.width = 24
+        chart.add_data(Reference(ws, min_col=helper_col + 1, max_col=helper_col + 2, min_row=1, max_row=data_last_row), titles_from_data=True)
+        chart.set_categories(Reference(ws, min_col=helper_col, min_row=2, max_row=data_last_row)); chart.style = 10
         ws.add_chart(chart, "A3")
         sections = [("2) 현상별 분석", self._top5_other(34)), ("3) 사용기간 분석", self._usage()), ("4) 주행거리 분석", self._mileage())]
         if self.market_var.get() != "D": sections.append(("5) 국가별 분석", self._top5_items(self._country_counter())))
-        positions = ["A55", "G55", "M55", "S55"]
+        positions = ["A30", "G30", "M30", "S30"]
         for pos, (title, items) in zip(positions, sections):
             start_col = 40 + positions.index(pos) * 3
             ws.cell(1, start_col, title); ws.cell(2, start_col, "항목"); ws.cell(2, start_col + 1, "건수")
@@ -485,10 +496,10 @@ class ClaimDashboard(tk.Tk):
             c = BarChart(); c.title = title; c.add_data(Reference(ws, min_col=start_col + 1, min_row=2, max_row=2 + len(items)), titles_from_data=True); c.set_categories(Reference(ws, min_col=start_col, min_row=3, max_row=2 + len(items))); c.height = 7; c.width = 7.2
             ws.add_chart(c, pos)
         for col in range(40, 52): ws.column_dimensions[openpyxl.utils.get_column_letter(col)].hidden = True
-        for col in range(1, 26): ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 10
-        ws.freeze_panes = "A23"; ws.sheet_view.showGridLines = False
+        for col in range(1, max(26, len(labels) + 2)): ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 10
+        ws.freeze_panes = "B22"; ws.sheet_view.showGridLines = False
         ws.sheet_properties.pageSetUpPr.fitToPage = True; ws.page_setup.orientation = "landscape"; ws.page_setup.fitToWidth = 1; ws.page_setup.fitToHeight = 1
-        ws.print_area = "A1:Z45"
+        ws.print_area = "A1:Z55"
         wb.save(path)
         try:
             os.startfile(path)
