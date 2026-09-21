@@ -1361,16 +1361,19 @@ class ClaimDashboard(tk.Tk):
         maxv=max(max(occ_vals or [1]), max(prod_vals or [1])); maxr=max(max(rates or [0]), 1)
         for i,(lab,o,p,rate) in enumerate(zip(labels,occ_vals,prod_vals,rates)):
             bx=left+i*group+group*.12; oh=chart_h*o/maxv; ph=chart_h*p/maxv
-            # 생산월은 왼쪽(회색), 발생월은 오른쪽(파랑)으로 배치
-            self._gradient_bar(bx, bottom-ph, bx+bw, bottom, "#d9e5ee", "#d9e5ee")
-            self._gradient_bar(bx+bw+2, bottom-oh, bx+bw*2+2, bottom, "#2563eb", "#2563eb")
+            # 생산월은 왼쪽(중간 청회색), 발생월은 오른쪽(파랑)으로 배치
+            production_color = "#94a3b8"
+            occurrence_color = "#2563eb"
+            rate_color = "#ef4444"
+            self._gradient_bar(bx, bottom-ph, bx+bw, bottom, production_color, production_color)
+            self._gradient_bar(bx+bw+2, bottom-oh, bx+bw*2+2, bottom, occurrence_color, occurrence_color)
             if n <= 30:
                 self.canvas.create_text(bx+bw*1.5+2, bottom-oh-2, text=f"{o:,}", anchor="s", font=(KOREAN_FONT, 7))
             self.canvas.create_text(bx+bw+2, bottom+4, text=str(lab), anchor="n", angle=0, font=(KOREAN_FONT, 8))
             # 발생율 꺾은선: 보조축을 차트 우측에 대응
             px=bx+bw+1; py=bottom-chart_h*rate/maxr
-            if i: self.canvas.create_line(prevx, prevy, px, py, fill="#ef4444", width=2)
-            self.canvas.create_oval(px-3,py-3,px+3,py+3,fill="#ef4444",outline="#ef4444")
+            if i: self.canvas.create_line(prevx, prevy, px, py, fill=rate_color, width=2)
+            self.canvas.create_oval(px-3,py-3,px+3,py+3,fill=rate_color,outline=rate_color)
             prevx,prevy=px,py
         # 그래프 하단 월별 DATA 표
         table_y = bottom + 58
@@ -1410,11 +1413,11 @@ class ClaimDashboard(tk.Tk):
         self.canvas.create_line(x, table_bottom, table_right, table_bottom, fill="#c8d3df", width=1)
         self.canvas.create_line(x, table_y, x, table_bottom, fill="#c8d3df", width=1)
         self.canvas.create_line(table_right, table_y, table_right, table_bottom, fill="#c8d3df", width=1)
-        self.canvas.create_rectangle(x+w-250,y+10,x+w-230,y+25,fill="#2563eb",outline="#1d4ed8")
+        self.canvas.create_rectangle(x+w-250,y+10,x+w-230,y+25,fill="#2563eb",outline="")
         self.canvas.create_text(x+w-222,y+17,text="발생월",anchor="w",font=(KOREAN_FONT,10))
-        self.canvas.create_rectangle(x+w-145,y+10,x+w-125,y+25,fill="#d9e5ee",outline="#71808a")
+        self.canvas.create_rectangle(x+w-145,y+10,x+w-125,y+25,fill="#94a3b8",outline="")
         self.canvas.create_text(x+w-117,y+17,text="생산월",anchor="w",font=(KOREAN_FONT,10))
-        self.canvas.create_line(x+w-60,y+17,x+w-35,y+17,fill="#1769ff",width=3)
+        self.canvas.create_line(x+w-60,y+17,x+w-35,y+17,fill="#ef4444",width=3)
         self.canvas.create_text(x+w-28,y+17,text="발생율",anchor="w",font=(KOREAN_FONT,10))
 
     def _inspection_assembly_by_month(self, selected_company="전체"):
