@@ -512,8 +512,10 @@ class ClaimDashboard(tk.Tk):
             month_positions = list(range(4, max_columns))
         headers = ["구분", "항목"] + month_headers
         output_rows = []
+        current_group = ""
         display_row = 0
         for ws in wb.worksheets:
+            current_group = ""
             for row_no, row in enumerate(ws.iter_rows(values_only=True), start=1):
                 raw = [clean(v) for v in row]
                 row_months = [clean(row[i]) for i in month_positions if i < len(row) and clean(row[i])]
@@ -523,7 +525,9 @@ class ClaimDashboard(tk.Tk):
                 if matching_months >= max(3, len(month_headers) // 2):
                     continue
                 item = next((v for v in raw[:5] if v), "")
-                group = raw[1] if len(raw) > 1 else ""
+                if len(raw) > 1 and raw[1] and ("KMC" in raw[1].upper() or "HMC" in raw[1].upper() or "WIA" in raw[1].upper() or "HMB" in raw[1].upper() or "MOBIS" in raw[1].upper()):
+                    current_group = raw[1]
+                group = current_group
                 label = raw[2] if len(raw) > 2 else item
                 is_sales = "매출액" in " ".join(raw[:5])
                 divisor = 1000000 if is_sales else 1000
