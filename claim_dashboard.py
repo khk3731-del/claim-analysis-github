@@ -1490,6 +1490,9 @@ class ClaimDashboard(tk.Tk):
                 vehicle = clean(row[vehicle_col]) if vehicle_col is not None and len(row) > vehicle_col else ""
                 if selected_company == "WIA" or "현대위아" in selected_company:
                     if "현대위아" not in customer: continue
+                elif selected_company == "HMB" or "모비스" in selected_company or "MOBIS" in selected_company.upper():
+                    if not any(token in customer.upper() for token in ("모비스", "MOBIS")):
+                        continue
                 elif selected_company == "기아" or "기아" in selected_company:
                     if "기아" not in customer: continue
                 elif selected_company == "HMC" or "현대자동차(주)울산" in selected_company:
