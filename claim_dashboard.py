@@ -391,7 +391,18 @@ class ClaimDashboard(tk.Tk):
         tree, wb = self._cost_widgets
         tree.delete(*tree.get_children())
         max_columns = max((ws.max_column or 0) for ws in wb.worksheets)
-        headers = ["시트", "행", "항목", "금액 단위"] + [f"열{i}" for i in range(1, max_columns + 1)]
+        # 원본 보고서의 첫 번째 월 헤더 행을 찾아 월 이름을 그대로 사용합니다.
+        month_headers = []
+        for ws in wb.worksheets:
+            for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 8), values_only=True):
+                candidates = [clean(v) for v in row[4:] if clean(v)]
+                if sum("월" in v or "합계" in v for v in candidates) >= 3:
+                    month_headers = candidates
+                    break
+            if month_headers: break
+        if not month_headers:
+            month_headers = [f"열{i}" for i in range(5, max_columns + 1)]
+        headers = ["시트", "구분", "항목", "금액 단위"] + month_headers
         tree["columns"] = [f"c{i}" for i in range(len(headers))]
         for i, header in enumerate(headers):
             tree.heading(f"c{i}", text=header)
@@ -402,15 +413,17 @@ class ClaimDashboard(tk.Tk):
                 raw = [clean(v) for v in row]
                 item = next((v for v in raw[:5] if v), "")
                 unit = "백만원" if any("백만원" in v.replace(" ", "") for v in raw[:5]) else ("천원" if any("천원" in v.replace(" ", "") for v in raw[:5]) else "")
+                group = raw[1] if len(raw) > 1 else ""
+                label = raw[2] if len(raw) > 2 else item
                 formatted = []
-                for value in row:
+                for value in row[4:4 + len(month_headers)]:
                     if isinstance(value, (int, float)) and not isinstance(value, bool):
                         formatted.append(f"{value:,.1f}" if isinstance(value, float) and not value.is_integer() else f"{value:,.0f}")
                     else:
                         formatted.append(clean(value))
-                values = [ws.title, row_no, item, unit] + formatted
+                values = [ws.title, group, label, unit] + formatted
                 values += [""] * (len(headers) - len(values))
-                if any(v not in ("", None) for v in values[4:]):
+                if any(v not in ("", None) for v in values[1:]):
                     tree.insert("", "end", values=values[:len(headers)], tags=("even" if display_row % 2 == 0 else "odd",))
                     display_row += 1
 
