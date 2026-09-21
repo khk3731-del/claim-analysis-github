@@ -459,7 +459,7 @@ class ClaimDashboard(tk.Tk):
         official_assembly = self._inspection_assembly_by_month(self.company_var.get())
         # 대시보드와 동일한 가로형 월별 표
         table_header_row = 21
-        table_rows = [("월", labels), ("생산월", [prod.get(lab, 0) for lab in labels]),
+        table_rows = [("생산월", [prod.get(lab, 0) for lab in labels]),
                       ("발생월", [occur.get(lab, 0) for lab in labels]),
                       ("조립수", [round(official_assembly.get(lab, 0)) for lab in labels]),
                       ("PPM", [round(occur.get(lab, 0) / official_assembly.get(lab, 0) * 1_000_000) if official_assembly.get(lab, 0) else 0 for lab in labels])]
@@ -475,16 +475,14 @@ class ClaimDashboard(tk.Tk):
                 cell = ws.cell(ri, ci); cell.fill = openpyxl.styles.PatternFill("solid", fgColor="FFFFFF")
                 cell.border = openpyxl.styles.Border(left=openpyxl.styles.Side(style="thin", color="C8D3DF"), right=openpyxl.styles.Side(style="thin", color="C8D3DF"), top=openpyxl.styles.Side(style="thin", color="C8D3DF"), bottom=openpyxl.styles.Side(style="thin", color="C8D3DF"))
                 cell.alignment = openpyxl.styles.Alignment(horizontal="center")
-        # 숨김 보조표로 월별 차트를 대시보드와 같은 생산월/발생월/PPM 구성으로 만든다.
-        # 월별 표(월 수에 따라 수십 열 확장)와 겹치지 않도록 보조 데이터는 CV열 이후에 둔다.
-        helper_col = 100
-        for ci, title in enumerate(("월", "생산월", "발생월", "PPM"), helper_col): ws.cell(1, ci, title)
-        for ri, lab in enumerate(labels, 2):
-            ws.cell(ri, helper_col, lab); ws.cell(ri, helper_col + 1, prod.get(lab, 0)); ws.cell(ri, helper_col + 2, occur.get(lab, 0)); ws.cell(ri, helper_col + 3, table_rows[4][1][ri - 2])
-        data_last_row = len(labels) + 1
+        # 월별 표 자체를 차트 원본으로 사용해 화면의 표와 그래프가 항상 같은 DATA를 사용하게 한다.
+        first_data_col = 2; last_data_col = len(labels) + 1
         chart = BarChart(); chart.title = "1) 월별 클레임 발생현황"; chart.y_axis.title = "건수"; chart.x_axis.title = "월"; chart.height = 8; chart.width = 24
-        chart.add_data(Reference(ws, min_col=helper_col + 1, max_col=helper_col + 2, min_row=1, max_row=data_last_row), titles_from_data=True)
-        chart.set_categories(Reference(ws, min_col=helper_col, min_row=2, max_row=data_last_row)); chart.style = 10
+        chart.add_data(Reference(ws, min_col=1, max_col=last_data_col, min_row=table_header_row + 1, max_row=table_header_row + 2), from_rows=True, titles_from_data=True)
+        chart.set_categories(Reference(ws, min_col=first_data_col, max_col=last_data_col, min_row=table_header_row)); chart.style = 10
+        line = LineChart(); line.add_data(Reference(ws, min_col=1, max_col=last_data_col, min_row=table_header_row + 4, max_row=table_header_row + 4), from_rows=True, titles_from_data=True)
+        line.set_categories(Reference(ws, min_col=first_data_col, max_col=last_data_col, min_row=table_header_row)); line.y_axis.axId = 200; line.y_axis.title = "PPM"; line.y_axis.crosses = "max"; line.height = 8; line.width = 24
+        chart += line
         ws.add_chart(chart, "A3")
         sections = [("2) 현상별 분석", self._top5_other(34)), ("3) 사용기간 분석", self._usage()), ("4) 주행거리 분석", self._mileage())]
         if self.market_var.get() != "D": sections.append(("5) 국가별 분석", self._top5_items(self._country_counter())))
@@ -496,10 +494,10 @@ class ClaimDashboard(tk.Tk):
                 ws.cell(ri, start_col, str(label).replace("\n", " ")); ws.cell(ri, start_col + 1, value)
             c = BarChart(); c.title = title; c.add_data(Reference(ws, min_col=start_col + 1, min_row=2, max_row=2 + len(items)), titles_from_data=True); c.set_categories(Reference(ws, min_col=start_col, min_row=3, max_row=2 + len(items))); c.height = 7; c.width = 7.2
             ws.add_chart(c, pos)
+        for col in range(110, 126):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 2
         # Excel은 숨김 열의 데이터를 차트에서 제외할 수 있으므로, 보조 데이터 열은 숨기지 않고
         # 인쇄 영역 밖에 유지한다. 열 폭만 줄여 보고서 본문에서는 보이지 않게 한다.
-        for col in range(100, 126):
-            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 2
         for col in range(1, max(26, len(labels) + 2)): ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 10
         ws.freeze_panes = "B22"; ws.sheet_view.showGridLines = False
         ws.sheet_properties.pageSetUpPr.fitToPage = True; ws.page_setup.orientation = "landscape"; ws.page_setup.fitToWidth = 1; ws.page_setup.fitToHeight = 1
