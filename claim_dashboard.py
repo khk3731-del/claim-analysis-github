@@ -495,7 +495,10 @@ class ClaimDashboard(tk.Tk):
                 ws.cell(ri, start_col, str(label).replace("\n", " ")); ws.cell(ri, start_col + 1, value)
             c = BarChart(); c.title = title; c.add_data(Reference(ws, min_col=start_col + 1, min_row=2, max_row=2 + len(items)), titles_from_data=True); c.set_categories(Reference(ws, min_col=start_col, min_row=3, max_row=2 + len(items))); c.height = 7; c.width = 7.2
             ws.add_chart(c, pos)
-        for col in range(40, 52): ws.column_dimensions[openpyxl.utils.get_column_letter(col)].hidden = True
+        # Excel은 숨김 열의 데이터를 차트에서 제외할 수 있으므로, 보조 데이터 열은 숨기지 않고
+        # 인쇄 영역 밖에 유지한다. 열 폭만 줄여 보고서 본문에서는 보이지 않게 한다.
+        for col in range(40, 52):
+            ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 2
         for col in range(1, max(26, len(labels) + 2)): ws.column_dimensions[openpyxl.utils.get_column_letter(col)].width = 10
         ws.freeze_panes = "B22"; ws.sheet_view.showGridLines = False
         ws.sheet_properties.pageSetUpPr.fitToPage = True; ws.page_setup.orientation = "landscape"; ws.page_setup.fitToWidth = 1; ws.page_setup.fitToHeight = 1
