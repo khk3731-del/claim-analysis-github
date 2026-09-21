@@ -427,6 +427,13 @@ class ClaimDashboard(tk.Tk):
             vs.grid(row=0, column=1, sticky="ns")
             hs.grid(row=1, column=0, sticky="ew")
             tree.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
+            # Treeview의 전체 셀 재렌더링을 기다리지 않고 월 단위로 즉시 이동할 수 있게 합니다.
+            def jump_horizontal(delta):
+                tree.xview_scroll(delta, "units")
+            ttk.Button(control, text="◀◀", width=4, command=lambda: jump_horizontal(-120)).pack(side="right", padx=2)
+            ttk.Button(control, text="◀", width=4, command=lambda: jump_horizontal(-40)).pack(side="right", padx=2)
+            ttk.Button(control, text="▶", width=4, command=lambda: jump_horizontal(40)).pack(side="right", padx=2)
+            ttk.Button(control, text="▶▶", width=4, command=lambda: jump_horizontal(120)).pack(side="right", padx=2)
             def fast_horizontal(event):
                 # Windows는 Shift+휠을 별도 이벤트로 전달하지 않는 경우가 있어
                 # state 비트로 Shift/Ctrl을 직접 판별합니다.
@@ -451,7 +458,7 @@ class ClaimDashboard(tk.Tk):
     def _cost_scroll(tree, *args):
         if args and args[0] == "scroll":
             try:
-                tree.xview_scroll(int(args[1]) * 6, args[2])
+                tree.xview_scroll(int(args[1]) * 60, args[2])
             except (TypeError, ValueError):
                 tree.xview(*args)
         else:
