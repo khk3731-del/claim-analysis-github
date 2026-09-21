@@ -483,19 +483,26 @@ class ClaimDashboard(tk.Tk):
                         if isinstance(cell.value, str) and cell.value.startswith("="): formula_count += 1
                         if isinstance(cell.value, str) and cell.value.startswith("#"): error_count += 1
             tk.Label(control, text=f"전체 DATA 등록 완료 · 시트 {len(wb.sheetnames)}개 · 행 {total_rows:,} · 계산 결과 표시 · 수식 검증 {formula_count:,}개", bg="#EEF6FF", fg="#102A4C", font=(KOREAN_FONT, 10, "bold")).pack(side="left")
+            tk.Label(control, text="시트", bg="#EEF6FF", fg="#102A4C", font=(KOREAN_FONT, 10, "bold")).pack(side="right", padx=(12, 4))
+            sheet_var = tk.StringVar(value="전체")
+            sheet_combo = ttk.Combobox(control, textvariable=sheet_var, values=["전체"] + list(wb.sheetnames), state="readonly", width=24)
+            sheet_combo.pack(side="right")
             body = tk.Frame(win, bg="#EEF6FF"); body.pack(fill="both", expand=True, padx=14, pady=8)
             table_frame = tk.Frame(body, bg="white"); table_frame.pack(fill="both", expand=True, pady=(10, 0))
             virtual_table = VirtualCostTable(table_frame); virtual_table.pack(fill="both", expand=True)
-            self._cost_widgets = (virtual_table, wb)
+            self._cost_widgets = (virtual_table, wb, sheet_var)
             self._update_cost_view()
+            sheet_combo.bind("<<ComboboxSelected>>", lambda e: self._update_cost_view())
         except Exception as exc:
             messagebox.showerror("클레임 비용현황 오류", str(exc))
 
     def _update_cost_view(self):
-        tree, wb = self._cost_widgets
+        tree, wb, sheet_var = self._cost_widgets
+        selected_sheet = sheet_var.get()
+        worksheets = wb.worksheets if selected_sheet == "전체" else [wb[selected_sheet]]
         # 서식만 남은 빈 열은 제외해 가로 이동 시 불필요한 렌더링을 줄입니다.
         max_columns = 0
-        for ws in wb.worksheets:
+        for ws in worksheets:
             for row in ws.iter_rows(max_row=min(ws.max_row or 0, 500)):
                 for index, cell in enumerate(row, start=1):
                     if cell.value not in (None, ""):
@@ -504,7 +511,7 @@ class ClaimDashboard(tk.Tk):
         # 원본 보고서의 첫 번째 월 헤더 행을 찾아 월 이름을 그대로 사용합니다.
         month_headers = []
         month_positions = []
-        for ws in wb.worksheets:
+        for ws in worksheets:
             for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 8), values_only=True):
                 positions = [i for i, v in enumerate(row) if i >= 4 and clean(v) and ("월" in clean(v) or "합계" in clean(v))]
                 candidates = [clean(row[i]) for i in positions]
@@ -520,7 +527,7 @@ class ClaimDashboard(tk.Tk):
         output_rows = []
         current_group = ""
         display_row = 0
-        for ws in wb.worksheets:
+        for ws in worksheets:
             current_group = ""
             for row_no, row in enumerate(ws.iter_rows(values_only=True), start=1):
                 raw = [clean(v) for v in row]
