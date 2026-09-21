@@ -59,7 +59,7 @@ class DashboardView:
         tk.Label(side, text="클레임 자동 분석", fg="white", bg="#082B52", font=("Malgun Gothic", 18, "bold")).pack(anchor="w", padx=20)
         tk.Label(side, text="Claim Analytics", fg="#A9C8E9", bg="#082B52", font=("Segoe UI", 10)).pack(anchor="w", padx=20, pady=(2, 24))
         st = ttk.Style(a); st.configure("ModernSidebar.Treeview", background="#082B52", fieldbackground="#082B52", foreground="white", rowheight=36, borderwidth=0, font=("Malgun Gothic", 11)); st.map("ModernSidebar.Treeview", background=[("selected", "#1677E8")])
-        menu = ttk.Treeview(side, show="tree", selectmode="browse", style="ModernSidebar.Treeview", height=3); menu.pack(fill="x", padx=10)
+        menu = ttk.Treeview(side, show="tree", selectmode="browse", style="ModernSidebar.Treeview", height=2); menu.pack(fill="x", padx=10)
         menu.tag_configure("section_header", background="#1769D4", foreground="white")
         root = menu.insert("", "end", text="클레임 분석", image=graph_icon, iid="dashboard", open=True, tags=("section_header",))
         menu.insert(root, "end", text="   보고서 출력", iid="report")

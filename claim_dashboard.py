@@ -1294,8 +1294,9 @@ class ClaimDashboard(tk.Tk):
         else:
             self.canvas.create_text(x, y-7, text=icon, anchor="sw", font=(KOREAN_FONT, 18, "bold"), fill=icon_color)
         self.canvas.create_text(x+58, y-7, text=title, anchor="sw", font=(KOREAN_FONT, 15, "bold"), fill="#10243d")
-        detail = self.canvas.create_text(x+w-62, y-7, text="자세히 보기 〉", anchor="sw", font=(KOREAN_FONT, 9, "bold"), fill="#1769d4", tags=("chart_detail",))
-        self.canvas.tag_bind(detail, "<Button-1>", lambda _event, chart_title=title: self._open_chart_detail(chart_title))
+        if title.startswith("2)") or title.startswith("5)"):
+            detail = self.canvas.create_text(x+w-12, y+14, text="자세히 보기 〉", anchor="ne", font=(KOREAN_FONT, 9, "bold"), fill="#1769d4", tags=("chart_detail",))
+            self.canvas.tag_bind(detail, "<Button-1>", lambda _event, chart_title=title: self._open_chart_detail(chart_title))
         bw = max(8, (w-50)/max(1,len(items))-5)
         for i,(lab,v) in enumerate(items):
             bx=left+i*(bw+5); bh=(h-65)*v/maxv; by=bottom-bh
