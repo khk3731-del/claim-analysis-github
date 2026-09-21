@@ -93,8 +93,13 @@ class ClaimDashboard(tk.Tk):
         # 이전 버전에서 업로드해 경로 저장이 없었던 경우에도 사용자가 제공한
         # 비용현황 원본을 자동으로 찾아 기존 DATA를 이어서 사용합니다.
         fallback_dir = r"W:\김훈기\김훈기\2.클레임 업무\★클레임 자료"
+        explicit = os.path.join(fallback_dir, "클레임 금액 종합현황(수정)REV13.xlsx")
+        if os.path.exists(explicit):
+            candidates = [explicit]
+        else:
+            candidates = []
         if os.path.isdir(fallback_dir):
-            candidates = [os.path.join(fallback_dir, name) for name in os.listdir(fallback_dir)
+            candidates += [os.path.join(fallback_dir, name) for name in os.listdir(fallback_dir)
                           if name.startswith("클레임 금액 종합현황") and name.lower().endswith((".xlsx", ".xlsm", ".xls"))]
             if candidates:
                 self.cost_source = max(candidates, key=os.path.getmtime)
