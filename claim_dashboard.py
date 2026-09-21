@@ -1181,13 +1181,13 @@ class ClaimDashboard(tk.Tk):
         self._monthly_combo(15, 8, top_w-30, chart_height)
         labels_y = 8 + chart_height - 38 + 58
         # 표의 실제 위치를 기준으로 배치해 스크롤 영역과 자연스럽게 정렬
-        self.fixed_table.place_configure(x=15, y=self.top_canvas.winfo_y() + labels_y)
+        self.fixed_table.place_configure(x=15, y=self.top_canvas.winfo_y() + labels_y, width=105, height=120)
         self.tk.call("raise", str(self.fixed_table))
-        fixed_fills = ["#e8f1fb", "#fff1f2", "#eef6ff", "#eef6ff", "#f3efff"]
+        fixed_fills = ["#e8f1fb", "#ffffff", "#ffffff", "#ffffff", "#ffffff"]
         for i, name in enumerate(("월", "생산월", "발생월", "조립수", "PPM")):
             yy = labels_y + i*24
             self.fixed_table.create_rectangle(0, yy-labels_y, 105, yy-labels_y+24, fill=fixed_fills[i], outline="#c8d3df")
-            self.fixed_table.create_text(52, yy-labels_y+12, text=name, anchor="center", font=(TABLE_FONT, 10, "bold"), fill="#20354b")
+            self.fixed_table.create_text(52, yy-labels_y+12, text=name, anchor="center", font=(KOREAN_FONT, 9), fill="#20354b")
         self.fixed_table.create_rectangle(0, 0, 105, 120, outline="#c8d3df", width=1)
         self.top_canvas.xview_moveto(1.0)
         self.canvas = self.bottom_canvas
@@ -1377,7 +1377,7 @@ class ClaimDashboard(tk.Tk):
         for ri, (name, vals) in enumerate(rows):
             yy = table_y + ri*row_h
             self.canvas.create_rectangle(x, yy, x+label_w, yy+row_h, fill=row_fills[ri], outline="#b8c7d6")
-            self.canvas.create_text(x+label_w/2, yy+row_h/2, text=name, anchor="center", font=(TABLE_FONT, 10, "bold"), fill="#20354b")
+            self.canvas.create_text(x+label_w/2, yy+row_h/2, text=name, anchor="center", font=(KOREAN_FONT, 9), fill="#20354b")
             for ci, val in enumerate(vals):
                 xx = x+label_w+ci*cell_w
                 self.canvas.create_rectangle(xx, yy, xx+cell_w, yy+row_h, fill=row_fills[ri], outline="#c8d3df")
