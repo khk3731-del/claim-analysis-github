@@ -376,7 +376,11 @@ class ClaimDashboard(tk.Tk):
             tk.Label(control, text=f"전체 DATA 등록 완료 · 시트 {len(wb.sheetnames)}개 · 행 {total_rows:,} · 계산 결과 표시 · 수식 검증 {formula_count:,}개", bg="#EEF6FF", fg="#102A4C", font=(KOREAN_FONT, 10, "bold")).pack(side="left")
             body = tk.Frame(win, bg="#EEF6FF"); body.pack(fill="both", expand=True, padx=14, pady=8)
             table_frame = tk.Frame(body, bg="white"); table_frame.pack(fill="both", expand=True, pady=(10, 0))
-            tree = ttk.Treeview(table_frame, show="headings"); tree.pack(side="left", fill="both", expand=True)
+            ttk.Style(win).configure("Cost.Treeview", rowheight=30, font=(KOREAN_FONT, 10), background="white", fieldbackground="white", foreground="#243B53")
+            ttk.Style(win).configure("Cost.Treeview.Heading", font=(KOREAN_FONT, 10, "bold"), background="#173F6B", foreground="white", padding=8)
+            tree = ttk.Treeview(table_frame, show="headings", style="Cost.Treeview"); tree.pack(side="left", fill="both", expand=True)
+            tree.tag_configure("even", background="#F7FAFC")
+            tree.tag_configure("odd", background="#FFFFFF")
             vs = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview); hs = ttk.Scrollbar(table_frame, orient="horizontal", command=tree.xview); vs.pack(side="right", fill="y"); hs.pack(side="bottom", fill="x"); tree.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
             self._cost_widgets = (tree, wb)
             self._update_cost_view()
@@ -387,17 +391,28 @@ class ClaimDashboard(tk.Tk):
         tree, wb = self._cost_widgets
         tree.delete(*tree.get_children())
         max_columns = max((ws.max_column or 0) for ws in wb.worksheets)
-        headers = ["시트", "행"] + [f"열{i}" for i in range(1, max_columns + 1)]
+        headers = ["시트", "행", "항목", "금액 단위"] + [f"열{i}" for i in range(1, max_columns + 1)]
         tree["columns"] = [f"c{i}" for i in range(len(headers))]
         for i, header in enumerate(headers):
             tree.heading(f"c{i}", text=header)
-            tree.column(f"c{i}", width=110 if i > 1 else 130, minwidth=70, anchor="center", stretch=False)
+            tree.column(f"c{i}", width=120 if i >= 4 else (180 if i == 2 else 70), minwidth=60, anchor="center", stretch=False)
+        display_row = 0
         for ws in wb.worksheets:
             for row_no, row in enumerate(ws.iter_rows(values_only=True), start=1):
-                values = [ws.title, row_no] + [clean(v) for v in row]
+                raw = [clean(v) for v in row]
+                item = next((v for v in raw[:5] if v), "")
+                unit = "백만원" if any("백만원" in v.replace(" ", "") for v in raw[:5]) else ("천원" if any("천원" in v.replace(" ", "") for v in raw[:5]) else "")
+                formatted = []
+                for value in row:
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        formatted.append(f"{value:,.1f}" if isinstance(value, float) and not value.is_integer() else f"{value:,.0f}")
+                    else:
+                        formatted.append(clean(value))
+                values = [ws.title, row_no, item, unit] + formatted
                 values += [""] * (len(headers) - len(values))
-                if any(v not in ("", None) for v in values[2:]):
-                    tree.insert("", "end", values=values[:len(headers)])
+                if any(v not in ("", None) for v in values[4:]):
+                    tree.insert("", "end", values=values[:len(headers)], tags=("even" if display_row % 2 == 0 else "odd",))
+                    display_row += 1
 
     def _on_customer_menu_select(self, _event=None):
         if self.customer_menu.selection() == ("customer_upload",):
