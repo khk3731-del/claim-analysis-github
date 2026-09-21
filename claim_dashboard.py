@@ -1372,7 +1372,8 @@ class ClaimDashboard(tk.Tk):
         table_y = bottom + 58
         row_h = 24
         rows = [("월", labels), ("생산월", prod_vals), ("발생월", occ_vals), ("조립수", assembly_vals), ("PPM", [round(v) for v in rates])]
-        row_fills = ["#e8f1fb", "#fff1f2", "#eef6ff", "#eef6ff", "#f3efff"]
+        # 월 헤더만 옅은 파랑으로 두고, 생산월/발생월/조립수/PPM 데이터 행은 흰색으로 통일한다.
+        row_fills = ["#e8f1fb", "#ffffff", "#ffffff", "#ffffff", "#ffffff"]
         for ri, (name, vals) in enumerate(rows):
             yy = table_y + ri*row_h
             self.canvas.create_rectangle(x, yy, x+label_w, yy+row_h, fill=row_fills[ri], outline="#b8c7d6")
@@ -1390,7 +1391,7 @@ class ClaimDashboard(tk.Tk):
             total_values = ["합계", total_production, total_occurrence, total_assembly, round(total_production / total_assembly * 1_000_000) if total_assembly else 0]
             tv = total_values[ri]
             total_w = max(cell_w, 112)
-            self.canvas.create_rectangle(total_x, yy, total_x+total_w, yy+row_h, fill="#dceaf2" if ri == 0 else "#fff1d6", outline="#c8a96b")
+            self.canvas.create_rectangle(total_x, yy, total_x+total_w, yy+row_h, fill="#dceaf2" if ri == 0 else "#ffffff", outline="#c8a96b")
             self.canvas.create_text(total_x+total_w/2, yy+row_h/2, text=f"{int(tv):,}" if ri == 3 and isinstance(tv, (int, float)) else (f"{tv:,}" if isinstance(tv,(int,float)) else str(tv)), anchor="center", font=(KOREAN_FONT, 8, "bold"))
         # 실제 마지막 합계 셀 끝까지 스크롤 가능하도록 작업영역 확장
         self.top_canvas.configure(scrollregion=(0, 0, total_x + cell_w + 30, self.top_canvas.winfo_reqheight() or 430))
