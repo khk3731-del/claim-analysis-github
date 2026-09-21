@@ -408,7 +408,8 @@ class ClaimDashboard(tk.Tk):
             formula_count = 0; error_count = 0; total_rows = 0; total_cells = 0
             for ws in formula_wb.worksheets:
                 total_rows += ws.max_row or 0; total_cells += (ws.max_row or 0) * (ws.max_column or 0)
-                for row in ws.iter_rows():
+                # 수식 검증은 화면 로딩을 막지 않도록 사용 영역의 앞부분만 빠르게 점검합니다.
+                for row in ws.iter_rows(max_row=min(ws.max_row or 0, 300), max_col=min(ws.max_column or 0, 80)):
                     for cell in row:
                         if isinstance(cell.value, str) and cell.value.startswith("="): formula_count += 1
                         if isinstance(cell.value, str) and cell.value.startswith("#"): error_count += 1
@@ -437,15 +438,19 @@ class ClaimDashboard(tk.Tk):
         max_columns = max((ws.max_column or 0) for ws in wb.worksheets)
         # 원본 보고서의 첫 번째 월 헤더 행을 찾아 월 이름을 그대로 사용합니다.
         month_headers = []
+        month_positions = []
         for ws in wb.worksheets:
             for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 8), values_only=True):
-                candidates = [clean(v) for v in row[4:] if clean(v)]
+                positions = [i for i, v in enumerate(row) if i >= 4 and clean(v) and ("월" in clean(v) or "합계" in clean(v))]
+                candidates = [clean(row[i]) for i in positions]
                 if sum("월" in v or "합계" in v for v in candidates) >= 3:
                     month_headers = candidates
+                    month_positions = positions
                     break
             if month_headers: break
         if not month_headers:
             month_headers = [f"열{i}" for i in range(5, max_columns + 1)]
+            month_positions = list(range(4, max_columns))
         headers = ["구분", "항목", "금액 단위"] + month_headers
         tree["columns"] = [f"c{i}" for i in range(len(headers))]
         for i, header in enumerate(headers):
@@ -455,7 +460,7 @@ class ClaimDashboard(tk.Tk):
         for ws in wb.worksheets:
             for row_no, row in enumerate(ws.iter_rows(values_only=True), start=1):
                 raw = [clean(v) for v in row]
-                row_months = [clean(v) for v in row[4:4 + len(month_headers)] if clean(v)]
+                row_months = [clean(row[i]) for i in month_positions if i < len(row) and clean(row[i])]
                 # 원본의 월 헤더 행은 이미 파란색 표 머리글로 표시했으므로
                 # 데이터 영역에 중복 삽입하지 않습니다.
                 matching_months = sum(a == b for a, b in zip(row_months, month_headers))
@@ -466,7 +471,8 @@ class ClaimDashboard(tk.Tk):
                 group = raw[1] if len(raw) > 1 else ""
                 label = raw[2] if len(raw) > 2 else item
                 formatted = []
-                for value in row[4:4 + len(month_headers)]:
+                for source_index in month_positions:
+                    value = row[source_index] if source_index < len(row) else None
                     if isinstance(value, (int, float)) and not isinstance(value, bool):
                         formatted.append(f"{value:,.1f}" if isinstance(value, float) and not value.is_integer() else f"{value:,.0f}")
                     else:
