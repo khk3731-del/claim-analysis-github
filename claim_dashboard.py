@@ -535,7 +535,7 @@ class ClaimDashboard(tk.Tk):
                     else:
                         formatted.append(clean(value))
                 # 제목/구분만 있고 월별 값이 없는 장식 행은 제외합니다.
-                if not any(v not in ("", None) for v in formatted):
+                if not any(v not in ("", None) for v in formatted) and not label:
                     continue
                 values = [group, label] + formatted
                 values += [""] * (len(headers) - len(values))
