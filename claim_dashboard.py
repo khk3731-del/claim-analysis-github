@@ -842,6 +842,19 @@ class ClaimDashboard(tk.Tk):
                             if (source_code_idx is not None and target_code_idx is not None
                                     and source_code_idx < len(row)):
                                 mapped[target_code_idx] = row[source_code_idx]
+                        # 모비스OEM 원본의 실제 기준 열은 AH=원인코드, AI=현상코드입니다.
+                        # 파일별 헤더 인코딩/공백 차이로 이름 검색이 실패해도 이 위치의
+                        # 원본 코드를 놓치지 않도록 고정 열을 최우선으로 적용합니다.
+                        mobis_code_columns = (("원인코드", 33), ("현상코드", 34))
+                        for code_name, source_code_idx in mobis_code_columns:
+                            target_code_idx = next(
+                                (i for i, key in enumerate(header_keys)
+                                 if key.replace(" ", "").lower() == code_name),
+                                None,
+                            )
+                            if (target_code_idx is not None and source_code_idx < len(row)
+                                    and row[source_code_idx] not in (None, "")):
+                                mapped[target_code_idx] = row[source_code_idx]
                         mobis_ctype_target_idx = next((i for i, key in enumerate(header_keys) if key.replace(" ", "").lower() == "c/type"), None)
                         mobis_ctype_source_idx = next((i for i, key in enumerate(source_headers) if key.replace(" ", "").lower() == "클레임타입"), None)
                         if mobis_ctype_target_idx is not None and mobis_ctype_source_idx is not None and mobis_ctype_source_idx < len(row):
