@@ -930,7 +930,10 @@ class ClaimDashboard(tk.Tk):
                 ws.column_dimensions[letter].width = min(max(max(len(clean(c.value)) for c in col[: min(len(col), 100)]) + 2, 10), 32)
             # 사용자가 저장 위치를 선택하지 않아도 통합 결과를 Excel에서 바로 볼 수 있도록
             # 임시 파일로 열고, 동시에 대시보드에도 표시합니다.
-            preview_path = os.path.join(tempfile.gettempdir(), "고객사별_통합_DATA_미리보기.xlsx")
+            # 고정 파일명은 이전에 열린 Excel 파일과 충돌해 Permission denied가 발생할 수 있으므로
+            # 매 실행마다 잠금되지 않은 고유 임시 파일을 만든다.
+            preview_fd, preview_path = tempfile.mkstemp(prefix="고객사별_통합_DATA_", suffix=".xlsx")
+            os.close(preview_fd)
             output.save(preview_path)
             os.startfile(preview_path)
             # 고객사별 자동 통합은 클레임 분석 화면과 분리합니다.
