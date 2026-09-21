@@ -431,7 +431,7 @@ class ClaimDashboard(tk.Tk):
                 # Windows는 Shift+휠을 별도 이벤트로 전달하지 않는 경우가 있어
                 # state 비트로 Shift/Ctrl을 직접 판별합니다.
                 modifiers = event.state or 0
-                step = 24 if modifiers & 0x0004 else (12 if modifiers & 0x0001 else 0)
+                step = 120 if modifiers & 0x0004 else (60 if modifiers & 0x0001 else 0)
                 if step:
                     direction = -1 if event.delta > 0 else 1
                     tree.xview_scroll(direction * step, "units")
@@ -440,8 +440,8 @@ class ClaimDashboard(tk.Tk):
             tree.bind("<MouseWheel>", fast_horizontal, add="+")
             tree.bind("<Shift-MouseWheel>", fast_horizontal, add="+")
             tree.bind("<Control-MouseWheel>", fast_horizontal, add="+")
-            tree.bind("<Shift-KeyPress-Left>", lambda e: (tree.xview_scroll(-24, "units"), "break")[-1])
-            tree.bind("<Shift-KeyPress-Right>", lambda e: (tree.xview_scroll(24, "units"), "break")[-1])
+            tree.bind("<Shift-KeyPress-Left>", lambda e: (tree.xview_scroll(-60, "units"), "break")[-1])
+            tree.bind("<Shift-KeyPress-Right>", lambda e: (tree.xview_scroll(60, "units"), "break")[-1])
             self._cost_widgets = (tree, wb)
             self._update_cost_view()
         except Exception as exc:
@@ -460,7 +460,14 @@ class ClaimDashboard(tk.Tk):
     def _update_cost_view(self):
         tree, wb = self._cost_widgets
         tree.delete(*tree.get_children())
-        max_columns = max((ws.max_column or 0) for ws in wb.worksheets)
+        # 서식만 남은 빈 열은 제외해 가로 이동 시 불필요한 렌더링을 줄입니다.
+        max_columns = 0
+        for ws in wb.worksheets:
+            for row in ws.iter_rows(max_row=min(ws.max_row or 0, 500)):
+                for index, cell in enumerate(row, start=1):
+                    if cell.value not in (None, ""):
+                        max_columns = max(max_columns, index)
+        max_columns = max(5, max_columns)
         # 원본 보고서의 첫 번째 월 헤더 행을 찾아 월 이름을 그대로 사용합니다.
         month_headers = []
         month_positions = []
