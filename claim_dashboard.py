@@ -95,8 +95,6 @@ class VirtualCostTable(tk.Frame):
         for r in range(first,last):
             y=self.head_h+r*self.row_h; x=0; fill="#F7FAFC" if r%2==0 else "white"
             for c,value in enumerate(self.rows[r]):
-                if c == 0:
-                    continue
                 w=self.widths[c]
                 if x+w >= x0 and x <= x0+cw:
                     self.canvas.create_rectangle(x,y,x+w,y+self.row_h,fill=fill,outline="#D5DEE8")
