@@ -68,6 +68,15 @@ class DashboardView:
             t = ttk.Treeview(side, show="tree", selectmode="browse", style="ModernSidebar.Treeview", height=2); t.pack(fill="x", padx=10, pady=(18, 0)); t.tag_configure("section_header", background="#1769D4", foreground="white"); r = t.insert("", "end", text=title, image=icon, iid=iid, open=True, tags=("section_header",)); child = "customer_upload" if iid == "customer_root" else "merge_app"; label = "   DATA 업로드" if iid == "customer_root" else "   검수폴더 병합앱"; t.insert(r, "end", text=label, iid=child); t.bind("<<TreeviewSelect>>", callback)
             if iid == "customer_root": a.customer_menu = t
             else: a.merge_menu = t
+        # 사이드바 하단 제품 이미지: 실제 실행 화면에서 사용하는 뷰에 직접 배치한다.
+        visual = tk.Frame(side, bg="#082B52")
+        visual.pack(side="bottom", fill="x", padx=8, pady=(0, 6))
+        for filename in ("car.png", "muffler.png"):
+            product = a._load_image(filename)
+            if product:
+                small = product.subsample(max(1, product.width() // 150), max(1, product.height() // 70))
+                tk.Label(visual, image=small, bg="#082B52").pack(fill="x", pady=2)
+                a.image_refs.append(small)
         tk.Label(side, text="품질로 더 나은 내일을 만듭니다.\n\nBetter Quality\nA Brighter Tomorrow", fg="#B8D1E8", bg="#082B52", justify="left", anchor="w", font=("Malgun Gothic", 9)).pack(side="bottom", fill="x", padx=20, pady=22)
 
     def _content(self, content):
