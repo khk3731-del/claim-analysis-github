@@ -331,6 +331,89 @@ class ClaimDashboard(tk.Tk):
         if action:
             action()
 
+    def _on_cost_menu_select(self, _event=None):
+        selected = self.cost_menu.selection()
+        if selected == ("cost_upload",):
+            self.open_cost_data()
+        elif selected in (("cost_view",), ("cost_root",)):
+            self.show_cost_analysis()
+
+    def open_cost_data(self):
+        path = filedialog.askopenfilename(
+            title="클레임 비용현황 DATA 선택",
+            filetypes=[("Excel 파일", "*.xlsx *.xlsm *.xls"), ("모든 파일", "*.*")],
+        )
+        if path:
+            self.cost_source = path
+            self.show_cost_analysis()
+
+    def show_cost_analysis(self):
+        if not getattr(self, "cost_source", ""):
+            self.open_cost_data()
+            return
+        win = tk.Toplevel(self); win.title("클레임 비용현황"); win.geometry("1500x900"); win.configure(bg="#EEF6FF")
+        top = tk.Frame(win, bg="white", highlightbackground="#D7E6F5", highlightthickness=1); top.pack(fill="x", padx=14, pady=14)
+        tk.Label(top, text="클레임 비용현황", bg="white", fg="#102A4C", font=(KOREAN_FONT, 18, "bold")).pack(side="left", padx=14, pady=10)
+        ttk.Button(top, text="DATA 업로드", command=lambda: (win.destroy(), self.open_cost_data())).pack(side="right", padx=10)
+        ttk.Button(top, text="새로고침", command=lambda: self._render_cost_view(win)).pack(side="right")
+        self._render_cost_view(win)
+
+    def _render_cost_view(self, win):
+        for child in win.winfo_children()[1:]: child.destroy()
+        try:
+            wb = openpyxl.load_workbook(self.cost_source, read_only=True, data_only=True)
+            known = ["HMC", "KIA", "WIA", "HMB", "MOBIS", "GLOVIS"]
+            control = tk.Frame(win, bg="#EEF6FF"); control.pack(fill="x", padx=14, pady=(0, 8))
+            tk.Label(control, text="고객사(다중 선택)", bg="#EEF6FF", fg="#102A4C", font=(KOREAN_FONT, 10, "bold")).pack(side="left")
+            selected = tk.Listbox(control, selectmode="multiple", height=1, width=42, exportselection=False)
+            for item in ["전체"] + known: selected.insert("end", item)
+            selected.selection_set(0); selected.pack(side="left", padx=10)
+            body = tk.Frame(win, bg="#EEF6FF"); body.pack(fill="both", expand=True, padx=14, pady=8)
+            canvas = tk.Canvas(body, bg="white", highlightthickness=1, highlightbackground="#D7E6F5", height=330); canvas.pack(fill="x")
+            table_frame = tk.Frame(body, bg="white"); table_frame.pack(fill="both", expand=True, pady=(10, 0))
+            tree = ttk.Treeview(table_frame, show="headings"); tree.pack(side="left", fill="both", expand=True)
+            vs = ttk.Scrollbar(table_frame, orient="vertical", command=tree.yview); hs = ttk.Scrollbar(table_frame, orient="horizontal", command=tree.xview); vs.pack(side="right", fill="y"); hs.pack(side="bottom", fill="x"); tree.configure(yscrollcommand=vs.set, xscrollcommand=hs.set)
+            self._cost_widgets = (selected, canvas, tree, wb)
+            self._update_cost_view()
+            selected.bind("<<ListboxSelect>>", lambda e: self._update_cost_view())
+        except Exception as exc:
+            messagebox.showerror("클레임 비용현황 오류", str(exc))
+
+    def _update_cost_view(self):
+        selected, canvas, tree, wb = self._cost_widgets
+        choices = [selected.get(i) for i in selected.curselection()]
+        if not choices or "전체" in choices: choices = ["전체"]
+        sheets = [s for s in wb.sheetnames if "REV" not in s.upper()]
+        if choices != ["전체"]:
+            matching = [s for s in sheets if any(c.lower() in s.lower() for c in choices)]
+            if matching: sheets = matching
+        rows = []
+        for name in sheets:
+            ws = wb[name]
+            for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 80), values_only=True):
+                vals = list(row)
+                if any(isinstance(v, str) and ("실발생금액" in v or "변제금액" in v or "실변제금액" in v) for v in vals[:4]): rows.append((name, vals))
+        if not rows:
+            messagebox.showwarning("클레임 비용현황", "선택한 고객사의 비용 요약 블록을 찾지 못했습니다.")
+            return
+        months = [str(i) for i in range(1, 13)]
+        series = {}
+        for sheet, vals in rows:
+            label = next((clean(v) for v in vals[:4] if clean(v)), sheet)
+            series[label] = [num(v) or 0 for v in vals[4:16]]
+        canvas.delete("all"); w = max(canvas.winfo_width(), 900); h = 320; pad = 55; maxv = max((max(v) for v in series.values()), default=1)
+        canvas.create_text(20, 18, anchor="w", text="월별 클레임 비용 추이 (천원)", font=(KOREAN_FONT, 14, "bold"), fill="#102A4C")
+        colors = ["#2563EB", "#F97316", "#10B981", "#8B5CF6"]
+        for idx, (label, vals) in enumerate(series.items()):
+            pts=[]
+            for j,v in enumerate(vals):
+                x=pad+j*max(1,(w-pad*2)//11); y= h-pad-(v/maxv)*(h-pad*2); pts.extend((x,y))
+            if len(pts)>=4: canvas.create_line(*pts, fill=colors[idx%len(colors)], width=3, smooth=True)
+            canvas.create_text(pad+idx*160, h-18, text=label[:18], fill=colors[idx%len(colors)], anchor="w")
+        headers=["구분"]+months; tree.delete(*tree.get_children()); tree["columns"]=[f"c{i}" for i in range(len(headers))]
+        for i,hdr in enumerate(headers): tree.heading(f"c{i}",text=hdr); tree.column(f"c{i}",width=110,anchor="center",stretch=False)
+        for label, vals in series.items(): tree.insert("", "end", values=[label]+[f"{v:,.0f}" for v in vals])
+
     def _on_customer_menu_select(self, _event=None):
         if self.customer_menu.selection() == ("customer_upload",):
             self.customer_data_aggregate()

@@ -59,6 +59,11 @@ class DashboardView:
         tk.Label(side, text="클레임 자동 분석", fg="white", bg="#082B52", font=("Malgun Gothic", 18, "bold")).pack(anchor="w", padx=20)
         tk.Label(side, text="Claim Analytics", fg="#A9C8E9", bg="#082B52", font=("Segoe UI", 10)).pack(anchor="w", padx=20, pady=(2, 24))
         st = ttk.Style(a); st.configure("ModernSidebar.Treeview", background="#082B52", fieldbackground="#082B52", foreground="white", rowheight=36, borderwidth=0, font=("Malgun Gothic", 11)); st.map("ModernSidebar.Treeview", background=[("selected", "#1677E8")])
+        cost_menu = ttk.Treeview(side, show="tree", selectmode="browse", style="ModernSidebar.Treeview", height=2); cost_menu.pack(fill="x", padx=10, pady=(0, 18)); cost_menu.tag_configure("section_header", background="#1769D4", foreground="white")
+        cost_root = cost_menu.insert("", "end", text="클레임 비용현황", image=graph_icon, iid="cost_root", open=True, tags=("section_header",))
+        cost_menu.insert(cost_root, "end", text="   비용현황 보기", iid="cost_view")
+        cost_menu.insert(cost_root, "end", text="   DATA 업로드", iid="cost_upload")
+        cost_menu.bind("<<TreeviewSelect>>", a._on_cost_menu_select); a.cost_menu = cost_menu
         menu = ttk.Treeview(side, show="tree", selectmode="browse", style="ModernSidebar.Treeview", height=2); menu.pack(fill="x", padx=10)
         menu.tag_configure("section_header", background="#1769D4", foreground="white")
         root = menu.insert("", "end", text="클레임 분석", image=graph_icon, iid="dashboard", open=True, tags=("section_header",))
