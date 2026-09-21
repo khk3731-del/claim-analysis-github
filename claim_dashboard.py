@@ -1181,14 +1181,18 @@ class ClaimDashboard(tk.Tk):
         self._monthly_combo(15, 8, top_w-30, chart_height)
         labels_y = 8 + chart_height - 38 + 58
         # 표의 실제 위치를 기준으로 배치해 스크롤 영역과 자연스럽게 정렬
-        self.fixed_table.place_configure(x=15, y=self.top_canvas.winfo_y() + labels_y, width=105, height=120)
+        self.fixed_table.place_configure(x=15, y=self.top_canvas.winfo_y() + labels_y, width=105, height=121)
         self.tk.call("raise", str(self.fixed_table))
         fixed_fills = ["#e8f1fb", "#ffffff", "#ffffff", "#ffffff", "#ffffff"]
         for i, name in enumerate(("월", "생산월", "발생월", "조립수", "PPM")):
             yy = labels_y + i*24
             self.fixed_table.create_rectangle(0, yy-labels_y, 105, yy-labels_y+24, fill=fixed_fills[i], outline="#c8d3df")
             self.fixed_table.create_text(52, yy-labels_y+12, text=name, anchor="center", font=(KOREAN_FONT, 9), fill="#20354b")
-        self.fixed_table.create_rectangle(0, 0, 105, 120, outline="#c8d3df", width=1)
+        # 고정 라벨 표도 본문과 같은 24px 행 간격을 사용하고, 마지막 PPM 하단선을 별도로 보장한다.
+        for line_y in (0, 24, 48, 72, 96, 120):
+            self.fixed_table.create_line(0, line_y, 104, line_y, fill="#c8d3df", width=1)
+        self.fixed_table.create_line(0, 0, 0, 120, fill="#c8d3df", width=1)
+        self.fixed_table.create_line(104, 0, 104, 120, fill="#c8d3df", width=1)
         self.top_canvas.xview_moveto(1.0)
         self.canvas = self.bottom_canvas
         # 사진의 현상코드 값(소음, 경고등 점등, 누기 등)이 들어 있는 컬럼
