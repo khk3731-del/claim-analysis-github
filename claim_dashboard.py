@@ -50,64 +50,258 @@ class VirtualCostTable(tk.Frame):
         self.hbar = ttk.Scrollbar(self, orient="horizontal", command=self._xview)
         self.canvas.grid(row=0, column=0, sticky="nsew"); self.vbar.grid(row=0, column=1, sticky="ns"); self.hbar.grid(row=1, column=0, sticky="ew")
         self.rowconfigure(0, weight=1); self.columnconfigure(0, weight=1)
-        self.canvas.configure(yscrollcommand=self.vbar.set, xscrollcommand=self.hbar.set)
+        self.canvas.configure(yscrollcommand=self._on_y_scroll, xscrollcommand=self._on_x_scroll)
         self.canvas.bind("<Configure>", lambda e: self.redraw())
-        self.headers=[]; self.rows=[]; self.widths=[]; self.row_h=30; self.head_h=38
+        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
+        self.canvas.bind("<Button-4>", lambda e: self._wheel_scroll(-3))
+        self.canvas.bind("<Button-5>", lambda e: self._wheel_scroll(3))
+        self.headers=[]; self.rows=[]; self.widths=[]; self.row_h=23; self.head_h=25
+        self._spans=[]; self._blank_spans=[]; self._summary_rows=set(); self._yellow_cells=set(); self._render_pending=False; self._redraw_job=None
 
-    def set_data(self, headers, rows):
+    def set_data(self, headers, rows, yellow_cells=None):
         self.headers, self.rows = headers, rows
-        self.widths=[140 if i == 0 else (180 if i == 1 else 120) for i in range(len(headers))]
-        self.canvas.configure(scrollregion=(0, 0, sum(self.widths), self.head_h + len(rows)*self.row_h)); self.redraw()
+        self._yellow_cells = yellow_cells or set()
+        self.widths=[80 if i == 0 else (115 if i == 1 else 73) for i in range(len(headers))]
+        self._spans = self._build_spans()
+        self._blank_spans = self._build_blank_spans()
+        self._summary_rows = {i for i, row in enumerate(self.rows)
+                              if len(row) > 1 and (str(row[1]) in {"매출액(백만원)", "건수"}
+                                                   or str(row[1]).startswith("매출액 대비 클레임율"))}
+        # 시트 변경/재조회 시 이전 스크롤 위치가 남아 월 열이 밀려 보이지 않게 한다.
+        self.canvas.xview_moveto(0)
+        self.canvas.yview_moveto(0)
+        self.canvas.configure(scrollregion=(0, 0, sum(self.widths), self.head_h + self._rows_height())); self.redraw()
+
+    def _row_height(self, index):
+        return 38 if index < len(self.rows) and self.rows[index] and self.rows[index][0] == "__REPEAT_TITLE__" else self.row_h
+
+    def _row_y(self, index):
+        return self.head_h + sum(self._row_height(i) for i in range(index))
+
+    def _rows_height(self):
+        return sum(self._row_height(i) for i in range(len(self.rows)))
+
+    def _build_spans(self):
+        spans=[]; start=None; current=""
+        for index, row in enumerate(self.rows + [[""]]):
+            if row and row[0] in {"__REPEAT_HEADER__", "__REPEAT_TITLE__"}:
+                if start is not None:
+                    spans.append((start, index, current))
+                start = None; current = ""
+                continue
+            value = str(row[0]) if row else ""
+            if value != current:
+                if start is not None: spans.append((start, index, current))
+                current=value; start=index if value else None
+        return spans
+
+    def _build_blank_spans(self):
+        """매출액 요약 2행처럼 구분 값이 빈 셀인 연속 행을 Excel처럼 병합한다."""
+        targets = {"매출액(백만원)", "매출액 대비 클레임율"}
+        spans = []
+        for index in range(len(self.rows) - 1):
+            if (not self.rows[index][0] and not self.rows[index + 1][0]
+                    and len(self.rows[index]) > 1 and len(self.rows[index + 1]) > 1
+                    and str(self.rows[index][1]) in targets
+                    and str(self.rows[index + 1][1]) in targets):
+                spans.append((index, index + 2))
+        return spans
 
     def _xview(self, *args):
-        self.canvas.xview_scroll(int(args[1])*20, args[2]) if args and args[0] == "scroll" else self.canvas.xview(*args); self.redraw()
+        self.canvas.xview_scroll(int(args[1])*20, args[2]) if args and args[0] == "scroll" else self.canvas.xview(*args); self._schedule_redraw()
 
     def _yview(self, *args):
-        self.canvas.yview(*args); self.redraw()
+        self.canvas.yview(*args); self._schedule_redraw()
+
+    def _on_y_scroll(self, first, last):
+        self.vbar.set(first, last)
+        self._schedule_redraw()
+
+    def _on_x_scroll(self, first, last):
+        self.hbar.set(first, last)
+        self._schedule_redraw()
+
+    def _wheel_scroll(self, units):
+        self.canvas.yview_scroll(units, "units")
+        self._schedule_redraw()
+
+    def _on_mousewheel(self, event):
+        units = -int(event.delta / 120) if event.delta else 0
+        if units:
+            self._wheel_scroll(units)
+        return "break"
+
+    def _schedule_redraw(self):
+        """스크롤 이벤트를 한 프레임으로 합쳐 빠르게 이동하도록 한다."""
+        if self._redraw_job is None:
+            self._redraw_job = self.after_idle(self._redraw_idle)
+
+    def _redraw_idle(self):
+        self._redraw_job = None
+        self.redraw()
 
     def redraw(self):
         if not self.headers: return
         self.canvas.delete("all"); x0=self.canvas.canvasx(0); y0=self.canvas.canvasy(0); cw=self.canvas.winfo_width(); ch=self.canvas.winfo_height()
-        first=max(0, int(max(0,y0-self.head_h)//self.row_h)); last=min(len(self.rows), int(max(0,y0+ch-self.head_h)//self.row_h)+2)
+        first=max(0, next((i for i in range(len(self.rows)) if self._row_y(i)+self._row_height(i) >= y0), 0)); last=min(len(self.rows), first + int(ch/self.row_h) + 8)
         x=0
         for c, header in enumerate(self.headers):
             w=self.widths[c]
             if x+w >= x0 and x <= x0+cw:
-                self.canvas.create_rectangle(x,0,x+w,self.head_h,fill="#173F6B",outline="#AAB8C8")
-                self.canvas.create_text(x+w/2,self.head_h/2,text=str(header),fill="white",font=(KOREAN_FONT,10,"bold"))
+                self.canvas.create_rectangle(x,0,x+w,self.head_h,fill="#F2F2F2",outline="#000000",width=1)
+                self.canvas.create_text(x+w/2,self.head_h/2,text=str(header),fill="#000000",font=(KOREAN_FONT,9,"bold"))
             x += w
-        # 원본 보고서처럼 구분 열의 연속된 행을 하나의 병합 셀로 표시합니다.
-        spans = []
-        start = None
-        current_value = ""
-        for index, row in enumerate(self.rows + [["", ""]]):
-            value = str(row[0]) if row else ""
-            if value != current_value:
-                if start is not None:
-                    spans.append((start, index, current_value))
-                current_value = value
-                start = index if value else None
-        if start is not None:
-            spans.append((start, len(self.rows), current_value))
-        for start, end, value in spans:
-            y1 = self.head_h + start * self.row_h; y2 = self.head_h + end * self.row_h
-            self.canvas.create_rectangle(0, y1, self.widths[0], y2, fill="#F7FAFC", outline="#AAB8C8")
-            self.canvas.create_text(self.widths[0] / 2, (y1 + y2) / 2, text=str(value), fill="#243B53", font=(KOREAN_FONT, 10), width=self.widths[0] - 12)
+        for start, end, value in self._spans:
+            y1 = self._row_y(start); y2 = self._row_y(end)
+            self.canvas.create_rectangle(0, y1, self.widths[0], y2, fill="white", outline="#000000", width=1)
+            self.canvas.create_text(self.widths[0] / 2, (y1 + y2) / 2, text=str(value), fill="#000000", font=(KOREAN_FONT, 9), width=self.widths[0] - 4)
+        for start, end in self._blank_spans:
+            y1 = self._row_y(start); y2 = self._row_y(end)
+            self.canvas.create_rectangle(0, y1, self.widths[0], y2, fill="white", outline="#000000", width=1)
         for r in range(first,last):
-            y=self.head_h+r*self.row_h; x=0; fill="#F7FAFC" if r%2==0 else "white"
+            y=self._row_y(r); rh=self._row_height(r); x=self.widths[0]
+            if self.rows[r] and self.rows[r][0] == "__REPEAT_HEADER__":
+                x = 0
+                for c, header in enumerate(self.headers):
+                    w = self.widths[c]
+                    self.canvas.create_rectangle(x,y,x+w,y+rh,fill="#F2F2F2",outline="#000000",width=1)
+                    self.canvas.create_text(x+w/2,y+rh/2,text=str(header),fill="#000000",font=(KOREAN_FONT,9,"bold"),anchor="center")
+                    x += w
+                # 가로 스크롤 중에도 반복 헤더의 구분·항목을 왼쪽에 고정한다.
+                fixed_header_x = self.canvas.canvasx(0)
+                fixed_header_w = self.widths[0] + self.widths[1]
+                self.canvas.create_rectangle(fixed_header_x, y, fixed_header_x+fixed_header_w, y+rh,
+                                             fill="#F2F2F2", outline="#000000", width=1)
+                self.canvas.create_text(fixed_header_x+fixed_header_w/2, y+rh/2, text="구분",
+                                        fill="#000000", font=(KOREAN_FONT,9,"bold"), anchor="center")
+                continue
+            if r in self._summary_rows:
+                continue
+            if self.rows[r] and self.rows[r][0] == "__REPEAT_TITLE__":
+                title = " ".join(str(self.rows[r][1]).replace("\r", " ").replace("\n", " ").split()) if len(self.rows[r]) > 1 else ""
+                self.canvas.create_rectangle(0,y,sum(self.widths),y+rh,fill="white",outline="")
+                self.canvas.create_line(0,y,sum(self.widths),y,fill="#000000",width=1)
+                self.canvas.create_line(0,y+rh,sum(self.widths),y+rh,fill="#000000",width=1)
+                self.canvas.create_text(8,y+rh/2,text=title,fill="#000000",font=(KOREAN_FONT,8,"bold"),anchor="w",width=0)
+                continue
             for c,value in enumerate(self.rows[r]):
                 if c == 0:
-                    x += self.widths[0]
+                    continue
+                if r in self._summary_rows and c == 1:
                     continue
                 w=self.widths[c]
                 if x+w >= x0 and x <= x0+cw:
-                    self.canvas.create_rectangle(x,y,x+w,y+self.row_h,fill=fill,outline="#D5DEE8")
-                    self.canvas.create_text(x+w/2,y+self.row_h/2,text=str(value),fill="#243B53",font=(KOREAN_FONT,10))
+                    fill = "#FFF2CC" if (r,c) in self._yellow_cells else "white"
+                    label_raw = str(self.rows[r][1]) if len(self.rows[r]) > 1 else ""
+                    label = label_raw.lower()
+                    color = "#C00000" if ("실변제" in label or "ttl" in label) else ("#0000FF" if "누적평균" in label else "#000000")
+                    self.canvas.create_rectangle(x,y,x+w,y+rh,fill=fill,outline="#000000",width=1)
+                    is_summary = (label_raw == "매출액(백만원)" or label_raw.startswith("매출액 대비 클레임율"))
+                    self.canvas.create_text(x+w/2,y+rh/2,text=str(value),fill=color,
+                                            font=(KOREAN_FONT,9,"bold" if is_summary else "normal"),anchor="center")
                 x += w
-        for start, end, value in spans:
-            y1 = self.head_h + start * self.row_h; y2 = self.head_h + end * self.row_h
-            self.canvas.create_rectangle(0, y1, self.widths[0], y2, fill="#F7FAFC", outline="#AAB8C8")
-            self.canvas.create_text(self.widths[0] / 2, (y1 + y2) / 2, text=str(value), fill="#243B53", font=(KOREAN_FONT, 10), width=self.widths[0] - 12)
+        # 매출액 관련 행은 구분+항목을 하나의 가로 병합 셀로 표현합니다.
+        for r in sorted(self._summary_rows.intersection(range(first, last))):
+            y = self._row_y(r); rh = self._row_height(r)
+            label = str(self.rows[r][1])
+            self.canvas.create_rectangle(0, y, self.widths[0] + self.widths[1], y + rh,
+                                         fill="white", outline="#000000", width=1)
+            self.canvas.create_text((self.widths[0] + self.widths[1]) / 2, y + rh / 2,
+                                    text=label, fill="#000000", font=(KOREAN_FONT,9,"bold"), anchor="center")
+            x = self.widths[0] + self.widths[1]
+            value_label = label.lower()
+            value_color = "#C00000" if ("실변제" in value_label or "ttl" in value_label) else ("#0000FF" if "누적평균" in value_label else "#000000")
+            for c in range(2, len(self.rows[r])):
+                w = self.widths[c]
+                value = self.rows[r][c]
+                if x+w >= x0 and x <= x0+cw:
+                    self.canvas.create_rectangle(x, y, x+w, y+rh, fill="white", outline="#000000", width=1)
+                    self.canvas.create_text(x+w/2, y+rh/2, text=str(value), fill=value_color,
+                                            font=(KOREAN_FONT,9,"bold"), anchor="center")
+                x += w
+        # Excel 틀고정처럼 헤더를 현재 viewport의 상단에 다시 그립니다.
+        # 본문은 기존 가상 스크롤 위치를 유지하고, 헤더만 화면 좌표상 고정합니다.
+        fixed_y = y0
+        x = 0
+        for c, header in enumerate(self.headers):
+            w = self.widths[c]
+            if x+w >= x0 and x <= x0+cw:
+                self.canvas.create_rectangle(x, fixed_y, x+w, fixed_y+self.head_h,
+                                             fill="#F2F2F2", outline="#000000", width=1)
+                self.canvas.create_text(x+w/2, fixed_y+self.head_h/2, text=str(header),
+                                        fill="#000000", font=(KOREAN_FONT,9,"bold"))
+            x += w
+
+        # Excel의 첫 두 열 틀고정: 월별 열을 가로 스크롤해도
+        # 구분/항목 열은 viewport 왼쪽에 계속 표시합니다.
+        fixed_x = x0
+        fixed_w = self.widths[0] + (self.widths[1] if len(self.widths) > 1 else 0)
+        self.canvas.create_rectangle(fixed_x, fixed_y, fixed_x + fixed_w, fixed_y + self.head_h,
+                                     fill="#F2F2F2", outline="#000000", width=1)
+        x = fixed_x
+        for c in range(min(2, len(self.headers))):
+            w = self.widths[c]
+            self.canvas.create_rectangle(x, fixed_y, x+w, fixed_y+self.head_h,
+                                         fill="#F2F2F2", outline="#000000", width=1)
+            self.canvas.create_text(x+w/2, fixed_y+self.head_h/2, text=str(self.headers[c]),
+                                    fill="#000000", font=(KOREAN_FONT,9,"bold"))
+            x += w
+        for start, end, value in self._spans:
+            y1 = self._row_y(start); y2 = self._row_y(end)
+            self.canvas.create_rectangle(fixed_x, y1, fixed_x+self.widths[0], y2,
+                                         fill="white", outline="#000000", width=1)
+            self.canvas.create_text(fixed_x+self.widths[0]/2, (y1+y2)/2, text=str(value),
+                                    fill="#000000", font=(KOREAN_FONT,9), width=self.widths[0]-4)
+        for start, end in self._blank_spans:
+            y1 = self._row_y(start); y2 = self._row_y(end)
+            self.canvas.create_rectangle(fixed_x, y1, fixed_x+self.widths[0], y2,
+                                         fill="white", outline="#000000", width=1)
+        for r in range(first, last):
+            y = self._row_y(r); rh = self._row_height(r)
+            if self.rows[r] and self.rows[r][0] == "__REPEAT_HEADER__":
+                continue
+            if self.rows[r] and self.rows[r][0] == "__REPEAT_TITLE__":
+                continue
+            if r in self._summary_rows:
+                continue
+            label = str(self.rows[r][1]) if len(self.rows[r]) > 1 else ""
+            fill = "#FFF2CC" if (r,1) in self._yellow_cells else "white"
+            color = "#C00000" if ("실변제" in label.lower() or "ttl" in label.lower()) else ("#0000FF" if "누적평균" in label else "#000000")
+            self.canvas.create_rectangle(fixed_x+self.widths[0], y,
+                                         fixed_x+fixed_w, y+rh,
+                                         fill=fill, outline="#000000", width=1)
+            is_summary = (label == "매출액(백만원)" or label.startswith("매출액 대비 클레임율"))
+            self.canvas.create_text(fixed_x+self.widths[0]+self.widths[1]/2, y+rh/2,
+                                    text=label, fill=color,
+                                    font=(KOREAN_FONT,9,"bold" if is_summary else "normal"), anchor="center")
+        for r in sorted(self._summary_rows.intersection(range(first, last))):
+            y = self._row_y(r); rh = self._row_height(r)
+            label = str(self.rows[r][1])
+            self.canvas.create_rectangle(fixed_x, y, fixed_x+fixed_w, y+rh,
+                                         fill="white", outline="#000000", width=1)
+            self.canvas.create_text(fixed_x+fixed_w/2, y+rh/2, text=label,
+                                    fill="#000000", font=(KOREAN_FONT,9,"bold"), anchor="center")
+
+        # 반드시 마지막에 그려 고정 열의 본문이 헤더를 덮지 못하게 한다.
+        # 이 순서가 Excel의 상단 틀고정을 보장하는 핵심이다.
+        x = x0
+        for c, header in enumerate(self.headers):
+            w = self.widths[c]
+            if x+w >= x0 and x <= x0+cw:
+                self.canvas.create_rectangle(x, fixed_y, x+w, fixed_y+self.head_h,
+                                             fill="#F2F2F2", outline="#000000", width=1)
+                self.canvas.create_text(x+w/2, fixed_y+self.head_h/2, text=str(header),
+                                        fill="#000000", font=(KOREAN_FONT,9,"bold"))
+            x += w
+        # 고정된 구분/항목 헤더도 마지막에 한 번 더 덧그린다.
+        x = fixed_x
+        for c in range(min(2, len(self.headers))):
+            w = self.widths[c]
+            self.canvas.create_rectangle(x, fixed_y, x+w, fixed_y+self.head_h,
+                                         fill="#F2F2F2", outline="#000000", width=1)
+            self.canvas.create_text(x+w/2, fixed_y+self.head_h/2, text=str(self.headers[c]),
+                                    fill="#000000", font=(KOREAN_FONT,9,"bold"))
+            x += w
 
 
 class ClaimDashboard(tk.Tk):
@@ -127,19 +321,28 @@ class ClaimDashboard(tk.Tk):
         self._inspection_assembly_cache = None
         self._render_job = None
         self._build_ui()
+        # 무거운 저장 데이터 복원/기본 파일 로드는 창을 먼저 띄운 뒤 실행한다.
+        # Tk 초기화 중 동기 로드하던 기존 방식은 첫 화면 표시를 지연시켰다.
+        self.after(50, self._startup_load)
+
+    def _startup_load(self):
+        """UI를 먼저 표시한 뒤 저장 데이터 또는 기본 DATA를 비동기로 준비한다."""
         self._restore_saved_data()
-        # 초기 화면을 막지 않고 집계 캐시를 즉시 백그라운드에서 준비한다.
-        self.after(0, self._preload_customer_assembly)
+        if not self.all_rows:
+            default = r"D:\Desktop\월별 클레임 아이템 증감비교\21년~26년 클레임 DATA(260824).xlsx"
+            if os.path.exists(default):
+                try:
+                    self.load(default)
+                    self.render()
+                except Exception as exc:
+                    self.status.config(text=f"기본 DATA 로드 실패: {exc}")
+        # 집계 캐시는 실제 분석 화면에서 필요할 때 지연 생성한다.
+        # Tk 변수에 접근하는 작업을 백그라운드 스레드에서 실행하면 Windows에서
+        # 메인 UI가 "응답 없음"으로 표시될 수 있어 시작 시 선행 집계를 하지 않는다.
 
     def _preload_customer_assembly(self):
         """Warm common customer assembly caches without blocking the UI thread."""
-        def worker():
-            for company in ("전체", "WIA", "기아", "현대", "HMC"):
-                try:
-                    self._inspection_assembly_by_month(company)
-                except Exception:
-                    pass
-        threading.Thread(target=worker, daemon=True).start()
+        return
 
     @property
     def _saved_data_path(self):
@@ -459,6 +662,9 @@ class ClaimDashboard(tk.Tk):
         if not getattr(self, "cost_source", ""):
             messagebox.showinfo("클레임 비용현황", "등록된 비용 DATA가 없습니다. 사이드바의 DATA 업로드를 눌러 한 번 등록해 주세요.")
             return
+        if not os.path.isfile(self.cost_source):
+            messagebox.showwarning("클레임 비용현황", "저장된 비용 DATA 경로를 찾을 수 없습니다. DATA 업로드에서 Excel 파일을 다시 선택해 주세요.")
+            return
         win = tk.Toplevel(self); win.title("클레임 비용현황"); win.geometry("1500x900"); win.configure(bg="#EEF6FF")
         top = tk.Frame(win, bg="white", highlightbackground="#D7E6F5", highlightthickness=1); top.pack(fill="x", padx=14, pady=14)
         tk.Label(top, text="클레임 비용현황", bg="white", fg="#102A4C", font=(KOREAN_FONT, 18, "bold")).pack(side="left", padx=14, pady=10)
@@ -471,9 +677,12 @@ class ClaimDashboard(tk.Tk):
         try:
             # 수식 검증은 원본 수식 파일로 수행하고, 화면에는 Excel이 계산한
             # cached result만 표시해 수식 원문이 보이지 않도록 합니다.
-            formula_wb = openpyxl.load_workbook(self.cost_source, read_only=True, data_only=False)
+            # read_only 셀은 스타일 정보(fill)를 제공하지 않아 fill이 None이 될 수 있다.
+            # 원본 색상(노란 강조)을 보존하려면 수식/스타일용 통합문서는 일반 모드로 연다.
+            formula_wb = openpyxl.load_workbook(self.cost_source, read_only=False, data_only=False)
             wb = openpyxl.load_workbook(self.cost_source, read_only=True, data_only=True)
-            control = tk.Frame(win, bg="#EEF6FF"); control.pack(fill="x", padx=14, pady=(0, 8))
+            win.configure(bg="white")
+            control = tk.Frame(win, bg="white"); control.pack(fill="x", padx=14, pady=(0, 8))
             formula_count = 0; error_count = 0; total_rows = 0; total_cells = 0
             for ws in formula_wb.worksheets:
                 total_rows += ws.max_row or 0; total_cells += (ws.max_row or 0) * (ws.max_column or 0)
@@ -482,24 +691,26 @@ class ClaimDashboard(tk.Tk):
                     for cell in row:
                         if isinstance(cell.value, str) and cell.value.startswith("="): formula_count += 1
                         if isinstance(cell.value, str) and cell.value.startswith("#"): error_count += 1
-            tk.Label(control, text=f"전체 DATA 등록 완료 · 시트 {len(wb.sheetnames)}개 · 행 {total_rows:,} · 계산 결과 표시 · 수식 검증 {formula_count:,}개", bg="#EEF6FF", fg="#102A4C", font=(KOREAN_FONT, 10, "bold")).pack(side="left")
-            tk.Label(control, text="시트", bg="#EEF6FF", fg="#102A4C", font=(KOREAN_FONT, 10, "bold")).pack(side="right", padx=(12, 4))
-            sheet_var = tk.StringVar(value="전체")
-            sheet_combo = ttk.Combobox(control, textvariable=sheet_var, values=["전체"] + list(wb.sheetnames), state="readonly", width=24)
+            tk.Label(control, text=f"전체 DATA 등록 완료 · 시트 {len(wb.sheetnames)}개 · 행 {total_rows:,} · 계산 결과 표시 · 수식 검증 {formula_count:,}개", bg="white", fg="#000000", font=(KOREAN_FONT, 10, "bold")).pack(side="left")
+            tk.Label(control, text="시트", bg="white", fg="#000000", font=(KOREAN_FONT, 10, "bold")).pack(side="right", padx=(12, 4))
+            # 사용자가 요청한 기본 시트는 항상 원본이다.
+            default_sheet = next((name for name in wb.sheetnames if name.strip() == "원본"), wb.sheetnames[0] if wb.sheetnames else "")
+            sheet_var = tk.StringVar(value=default_sheet)
+            sheet_combo = ttk.Combobox(control, textvariable=sheet_var, values=list(wb.sheetnames), state="readonly", width=24)
             sheet_combo.pack(side="right")
-            body = tk.Frame(win, bg="#EEF6FF"); body.pack(fill="both", expand=True, padx=14, pady=8)
+            body = tk.Frame(win, bg="white"); body.pack(fill="both", expand=True, padx=14, pady=8)
             table_frame = tk.Frame(body, bg="white"); table_frame.pack(fill="both", expand=True, pady=(10, 0))
             virtual_table = VirtualCostTable(table_frame); virtual_table.pack(fill="both", expand=True)
-            self._cost_widgets = (virtual_table, wb, sheet_var)
+            self._cost_widgets = (virtual_table, wb, formula_wb, sheet_var)
             self._update_cost_view()
             sheet_combo.bind("<<ComboboxSelected>>", lambda e: self._update_cost_view())
         except Exception as exc:
-            messagebox.showerror("클레임 비용현황 오류", str(exc))
+            messagebox.showerror("클레임 비용현황 오류", f"Excel을 읽는 중 오류가 발생했습니다.\n{type(exc).__name__}: {exc}")
 
     def _update_cost_view(self):
-        tree, wb, sheet_var = self._cost_widgets
+        tree, wb, formula_wb, sheet_var = self._cost_widgets
         selected_sheet = sheet_var.get()
-        worksheets = wb.worksheets if selected_sheet == "전체" else [wb[selected_sheet]]
+        worksheets = [wb[selected_sheet]] if selected_sheet in wb.sheetnames else []
         # 서식만 남은 빈 열은 제외해 가로 이동 시 불필요한 렌더링을 줄입니다.
         max_columns = 0
         for ws in worksheets:
@@ -512,46 +723,79 @@ class ClaimDashboard(tk.Tk):
         month_headers = []
         month_positions = []
         for ws in worksheets:
-            for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 8), values_only=True):
+            for row in ws.iter_rows(values_only=True):
                 positions = [i for i, v in enumerate(row) if i >= 4 and clean(v) and ("월" in clean(v) or "합계" in clean(v))]
                 candidates = [clean(row[i]) for i in positions]
                 if sum("월" in v or "합계" in v for v in candidates) >= 3:
-                    month_headers = candidates
-                    month_positions = positions
-                    break
-            if month_headers: break
+                    if len(positions) > len(month_positions):
+                        month_headers = candidates
+                        month_positions = positions
         if not month_headers:
             month_headers = [f"열{i}" for i in range(5, max_columns + 1)]
             month_positions = list(range(4, max_columns))
-        # 청색 헤더만 있고 아래 DATA가 전혀 없는 열은 표시하지 않습니다.
-        active_positions = []
-        for position in month_positions:
-            if any(
-                any(position < len(row) and row[position] not in (None, "") for row in ws.iter_rows(min_row=3, values_only=True))
-                for ws in worksheets
-            ):
-                active_positions.append(position)
-        if active_positions:
-            month_headers = [header for header, position in zip(month_headers, month_positions) if position in active_positions]
-            month_positions = active_positions
+        # 값이 없는 월도 원본 열 위치를 보존한다. 빈 열을 제거하면
+        # 이후 월 DATA가 왼쪽으로 밀려 원본과 다른 월에 표시된다.
         headers = ["구분", "항목"] + month_headers
-        output_rows = []
+        output_rows = []; yellow_cells = set()
         current_group = ""
         display_row = 0
+        current_month_positions = list(month_positions)
+        current_month_headers = list(month_headers)
         for ws in worksheets:
             current_group = ""
             for row_no, row in enumerate(ws.iter_rows(values_only=True), start=1):
                 raw = [clean(v) for v in row]
-                row_months = [clean(row[i]) for i in month_positions if i < len(row) and clean(row[i])]
+                # 반복 헤더가 있는 구간은 원본의 실제 월 열 위치를 사용한다.
+                row_positions = [i for i, v in enumerate(row) if i >= 4 and clean(v) and ("월" in clean(v) or "합계" in clean(v))]
+                row_header_values = [clean(row[i]) for i in row_positions]
+                if sum("월" in v or "합계" in v for v in row_header_values) >= 3:
+                    current_month_positions = row_positions
+                    current_month_headers = row_header_values
+                row_months = [clean(row[i]) for i in current_month_positions if i < len(row) and clean(row[i])]
+                nonempty = [v for v in raw[:8] if v]
+                title_probe = nonempty[0] if nonempty else ""
+                # 원본 Excel의 병합 제목행: 긴 섹션명/누적평균 제목은 월 값 유무와
+                # 관계없이 전체 표 폭을 사용하는 단일 제목행으로 변환한다.
+                merged_title = (
+                    len(title_probe) >= 15
+                    or "누적평균" in title_probe
+                    or ("별도" in title_probe and "접수" in title_probe)
+                    or ("H/KMC" in title_probe and "합계" in title_probe)
+                ) and "구분" not in title_probe and "항목" not in title_probe \
+                  and not title_probe.startswith("매출액")
+                # 실제 섹션 제목은 Excel 병합 셀의 첫 칸 하나만 채워진다.
+                # 구분+항목이 함께 있는 일반 데이터 행은 절대 제목으로 바꾸지 않는다.
+                if merged_title and len(nonempty) == 1:
+                    title = " ".join(title_probe.replace("\r", " ").replace("\n", " ").split())
+                    output_rows.append(["__REPEAT_TITLE__", title] + [""] * max(0, len(headers) - 2))
+                    continue
                 # 파란색 헤더 바로 아래의 원본 보고서 제목/설명 행은
                 # 월별 값이 없는 메타 행이므로 표에 표시하지 않습니다.
-                has_month_value = any(i < len(row) and row[i] not in (None, "") for i in month_positions)
+                has_month_value = any(i < len(row) and row[i] not in (None, "") for i in current_month_positions)
                 if row_no <= 3 and not has_month_value:
+                    continue
+                # 원본 중간 제목은 표 폭 전체를 사용하는 병합 제목 행으로 보존한다.
+                if not has_month_value and any(raw):
+                    title = next((v for v in raw[:6] if v), "")
+                    # 원본의 섹션 제목만 보존한다. 일반 항목(예: 캠페인)은 제외한다.
+                    # 실제 섹션 제목은 원본처럼 연도/월 또는 '별도 접수' 정보를 포함한다.
+                    # '매출액 대비 클레임율' 같은 일반 항목은 제목으로 오인하지 않는다.
+                    is_title = (
+                        ("클레임" in title and ("년" in title or "월" in title or "별도" in title))
+                        or ("OEM" in title and ("년" in title or "월" in title))
+                        or ("현황" in title and ("년" in title or "월" in title))
+                    )
+                    if title and is_title and "구분" not in title and "항목" not in title:
+                        title = " ".join(str(title).replace("\r", " ").replace("\n", " ").split())
+                        output_rows.append(["__REPEAT_TITLE__", title] + [""] * max(0, len(headers) - 2))
                     continue
                 # 원본의 월 헤더 행은 이미 파란색 표 머리글로 표시했으므로
                 # 데이터 영역에 중복 삽입하지 않습니다.
-                matching_months = sum(a == b for a, b in zip(row_months, month_headers))
+                matching_months = sum(a == b for a, b in zip(row_months, current_month_headers))
                 if matching_months >= max(3, len(month_headers) // 2):
+                    # 원본 Excel에 실제로 반복된 헤더 행을 동일한 위치에 삽입한다.
+                    if output_rows:
+                        output_rows.append(["__REPEAT_HEADER__", ""] + month_headers)
                     continue
                 item = next((v for v in raw[:5] if v), "")
                 if len(raw) > 1 and raw[1] and (len(raw) > 2 and raw[2] or "KMC" in raw[1].upper() or "HMC" in raw[1].upper() or "WIA" in raw[1].upper() or "HMB" in raw[1].upper() or "MOBIS" in raw[1].upper()):
@@ -559,27 +803,56 @@ class ClaimDashboard(tk.Tk):
                 group = current_group
                 is_group = bool(raw[1] and ("KMC" in raw[1].upper() or "HMC" in raw[1].upper() or "WIA" in raw[1].upper() or "HMB" in raw[1].upper() or "MOBIS" in raw[1].upper()))
                 label = raw[2] if len(raw) > 2 and raw[2] else (raw[1] if len(raw) > 1 and raw[1] and not is_group else item)
-                if not is_group and label in ("매출액(백만원)", "매출액 대비 클레임율"):
+                if label.startswith("매출액 대비 클레임율"):
+                    label = "매출액 대비 클레임율(PPM)" if "PPM" in label.upper() else label
+                if not is_group and (label == "매출액(백만원)" or label.startswith("매출액 대비 클레임율")):
+                    group = ""
+                if label == "건수":
                     group = ""
                 is_sales = "매출액" in label
                 is_ratio = "클레임율" in label or "대비" in label
                 divisor = 1000000 if is_sales else 1000
-                formatted = []
-                for source_index in month_positions:
+                formatted = [""] * len(month_positions)
+                # 화면의 전역 헤더 열 위치와 동일한 원본 열 인덱스를 사용한다.
+                # 구간별 임시 위치를 사용하면 요약 행만 월 열이 어긋난다.
+                data_positions = month_positions
+                # PPM/매출액 행은 원본에서 11년 이후처럼 뒤쪽 열부터 값이
+                # 시작할 수 있다. 앞쪽 빈 월을 유지한 채 실제 마지막 값까지 읽는다.
+                if is_sales or is_ratio:
+                    populated = [i for i in range(4, len(row)) if row[i] not in (None, "")]
+                    if populated:
+                        data_positions = list(range(4, max(populated) + 1))
+                for source_index in data_positions:
                     value = row[source_index] if source_index < len(row) else None
+                    if source_index not in month_positions:
+                        continue
+                    display_index = month_positions.index(source_index)
                     if isinstance(value, (int, float)) and not isinstance(value, bool):
-                        formatted.append(f"{value:,.2f}" if is_ratio else f"{value / divisor:,.0f}")
+                        formatted[display_index] = f"{value:,.2f}" if is_ratio else f"{value / divisor:,.0f}"
                     else:
-                        formatted.append(clean(value))
+                        formatted[display_index] = clean(value)
                 # 제목/구분만 있고 월별 값이 없는 장식 행은 제외합니다.
                 if not any(v not in ("", None) for v in formatted) and not label:
                     continue
                 values = [group, label] + formatted
                 values += [""] * (len(headers) - len(values))
                 if any(v not in ("", None) for v in values):
+                    output_index = len(output_rows)
                     output_rows.append(values[:len(headers)])
+                    # 원본 Excel의 노란 강조 셀을 표시 데이터의 동일한 위치에 보존합니다.
+                    for source_index in data_positions:
+                        if source_index not in month_positions:
+                            continue
+                        display_col = month_positions.index(source_index) + 2
+                        if source_index < ws.max_column:
+                            fill = formula_wb[ws.title].cell(row_no, source_index + 1).fill
+                            color_obj = getattr(fill, "fgColor", None) if fill is not None else None
+                            color = getattr(color_obj, "rgb", None) or getattr(color_obj, "value", None) or ""
+                            color = str(color)
+                            if color[-6:].upper() in {"FFFF00", "FFF2CC", "FFD966"}:
+                                yellow_cells.add((output_index, display_col))
                     display_row += 1
-        tree.set_data(headers, output_rows)
+        tree.set_data(headers, output_rows, yellow_cells)
 
     def _on_customer_menu_select(self, _event=None):
         if self.customer_menu.selection() == ("customer_upload",):
@@ -1915,11 +2188,4 @@ class ClaimDashboard(tk.Tk):
 
 if __name__ == "__main__":
     app = ClaimDashboard()
-    default = r"D:\Desktop\월별 클레임 아이템 증감비교\21년~26년 클레임 DATA(260824).xlsx"
-    if os.path.exists(default):
-        # 저장된 업로드 DATA가 있으면 실행 때마다 기본 원본으로 덮어쓰지 않는다.
-        try:
-            if not app.all_rows:
-                app.load(default); app.render()
-        except Exception: pass
     app.mainloop()
